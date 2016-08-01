@@ -72,7 +72,7 @@ func isRequired(fieldType reflect.StructField, action string) bool {
     return false
 }
 
-func startsWith(data, prefix string) {
+func startsWith(data, prefix string) bool {
     return data[:len(prefix)] == prefix
 }
 
