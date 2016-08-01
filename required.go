@@ -25,14 +25,14 @@ func getMissedValuePath(value reflect.Value, action string) string {
 
     case reflect.Array, reflect.Slice:
         for i := 0; i < value.Len(); i++ {
-            if subPath := getMissedValuePath(value.Index(i), action); subPath != nil {
+            if subPath := getMissedValuePath(value.Index(i), action); subPath != "" {
                 return fmt.Sprintf("[%d]%s", i, subPath)
             }
         }
 
     case reflect.Map:
         for _, key := range value.MapKeys() {
-            if subPath := getMissedValuePath(value.MapIndex(key), action); subPath != nil {
+            if subPath := getMissedValuePath(value.MapIndex(key), action); subPath != "" {
                 return fmt.Sprintf("[%v]%s", value.Interface(), subPath)
             }
         }
@@ -49,7 +49,7 @@ func getMissedValuePath(value reflect.Value, action string) string {
                     return fmt.Sprintf(".%s", fieldType.Name)
                 }
             } else {
-                if subPath := getMissedValuePath(field, action); subPath != nil {
+                if subPath := getMissedValuePath(field, action); subPath != "" {
                     return fmt.Sprintf(".%s%s", fieldType.Name, subPath)
                 }
             }
