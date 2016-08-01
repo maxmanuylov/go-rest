@@ -61,10 +61,9 @@ func (server *Server) ListenAndServe(addr *net.TCPAddr) error {
     }
 
     go server.Serve(listener)
+    defer listener.Close()
 
     application.WaitForTermination()
-
-    listener.Close()
 
     return nil
 }
