@@ -9,12 +9,9 @@ import (
 var requiredDataPrefix = "required@"
 
 func checkRequiredFields(item interface{}, action string) error {
-    value := reflect.ValueOf(item).Elem()
-
-    if fieldPath := getMissedValuePath(value, action); fieldPath != "" {
+    if fieldPath := getMissedValuePath(reflect.ValueOf(item), action); fieldPath != "" {
         return fmt.Errorf("Filed is not specified: %s", strings.TrimPrefix(fieldPath, "."))
     }
-
     return nil
 }
 
