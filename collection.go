@@ -176,11 +176,9 @@ func (collection *Collection) handleCreate(ids []string, response http.ResponseW
         return
     }
 
-    url := request.URL
-    resourcePath := path.Clean(fmt.Sprintf("%s/%s", strings.Trim(url.Path, "/"), id))
-    resourceLocation := fmt.Sprintf("%s://%s/%s", url.Scheme, url.Host, resourcePath)
+    relativeLocation := path.Clean(fmt.Sprintf("/%s/%s", strings.Trim(request.URL.Path, "/"), id))
 
-    response.Header().Add("Location", resourceLocation)
+    response.Header().Add("Location", relativeLocation)
 
     writeAnswer(response, http.StatusCreated, nil)
 }
