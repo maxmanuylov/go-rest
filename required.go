@@ -43,11 +43,11 @@ func getMissedValuePath(value reflect.Value, action string) string {
 
             if isZero(field) {
                 if isRequired(fieldType, action) {
-                    return fmt.Sprintf(".%s", fieldType.Name)
+                    return fmt.Sprintf(".%s", getFieldName(fieldType))
                 }
             } else {
                 if subPath := getMissedValuePath(field, action); subPath != "" {
-                    return fmt.Sprintf(".%s%s", fieldType.Name, subPath)
+                    return fmt.Sprintf(".%s%s", getFieldName(fieldType), subPath)
                 }
             }
         }
@@ -80,4 +80,11 @@ func contains(actions []string, action string) bool {
     return false
 }
 
-
+func getFieldName(fieldType reflect.StructField) string {
+    if jsonTag := strings.TrimSpace(fieldType.Tag.Get("json")); jsonTag != "" && jsonTag != "-" {
+        if jsonName := strings.TrimSpace(strings.SplitN(jsonTag, ",", 2)[0]); jsonName != "" {
+            return jsonName
+        }
+    }
+    return fieldType.Name
+}
