@@ -6,6 +6,7 @@ import (
     "io/ioutil"
     "net/http"
     "path"
+    "reflect"
     "strconv"
     "strings"
 )
@@ -148,7 +149,7 @@ func (collection *Collection) handleRead(ids []string, response http.ResponseWri
         return
     }
 
-    if item == nil {
+    if isNil(item) {
         writeError(response, ErrNotFound)
         return
     }
@@ -221,6 +222,21 @@ func (collection *Collection) handleDelete(ids []string, response http.ResponseW
     }
 
     writeAnswer(response, http.StatusOK, nil)
+}
+
+func isNil(item interface{}) bool {
+    if item == nil {
+        return true
+    }
+
+    value := reflect.ValueOf(item)
+
+    switch value.Kind() {
+    case reflect.Interface, reflect.Ptr, reflect.Slice, reflect.Map:
+        return value.IsNil()
+    default:
+        return false
+    }
 }
 
 func marshal(v interface{}, request *http.Request) ([]byte, error) {
