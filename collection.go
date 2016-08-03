@@ -6,6 +6,7 @@ import (
     "io/ioutil"
     "net/http"
     "path"
+    "strconv"
     "strings"
 )
 
@@ -131,7 +132,7 @@ func (collection *Collection) handleList(ids []string, response http.ResponseWri
         return
     }
 
-    itemsJson, err := json.Marshal(items)
+    itemsJson, err := marshal(items, request)
     if err != nil {
         writeError(response, err)
         return
@@ -152,7 +153,7 @@ func (collection *Collection) handleRead(ids []string, response http.ResponseWri
         return
     }
 
-    itemJson, err := json.Marshal(item)
+    itemJson, err := marshal(item, request)
     if err != nil {
         writeError(response, err)
         return
@@ -222,6 +223,14 @@ func (collection *Collection) handleDelete(ids []string, response http.ResponseW
     writeAnswer(response, http.StatusOK, nil)
 }
 
+func marshal(v interface{}, request *http.Request) ([]byte, error) {
+    if indentParam := request.URL.Query().Get("indent"); indentParam != "" {
+        if indentCount, err := strconv.Atoi(indentParam); err == nil && indentCount <= 32 {
+            return json.MarshalIndent(v, "", strings.Repeat(" ", indentCount))
+        }
+    }
+    return json.Marshal(v)
+}
 
 func (collection *Collection) readItem(request *http.Request, action string) (interface{}, error) {
     itemJson, err := ioutil.ReadAll(request.Body)
