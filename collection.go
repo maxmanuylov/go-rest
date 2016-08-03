@@ -40,19 +40,27 @@ func (server *Server) Collection(name string, handler ResourceHandler) *Collecti
         panic(fmt.Sprintf("Slash in collection name: %s", name))
     }
 
-    pattern := fmt.Sprintf("/%s/", name)
-    server.mux.HandleFunc(pattern, func(response http.ResponseWriter, request *http.Request) {
-        path := strings.TrimPrefix(request.URL.Path, "/")
-        path = strings.TrimPrefix(path, fmt.Sprintf("%s", name))
-        path = strings.Trim(path, "/")
+    if len(name) == 0 {
+        panic("Empty collection name")
+    }
 
-        pathNames := strings.Split(path, "/")
+    pattern := fmt.Sprintf("/%s/", name)
+
+    server.mux.HandleFunc(pattern, func(response http.ResponseWriter, request *http.Request) {
+        pathNames := strings.FieldsFunc(strings.TrimSpace(request.URL.Path), func(r rune) bool {
+            return r == '/'
+        })
+
+        if len(pathNames) == 0 { // cannot happen
+            writeError(response, fmt.Errorf("Invalid URL path: %s", request.URL.Path))
+            return
+        }
 
         ids := make([]string, 0)
         actualCollection := collection
         id := true
 
-        for _, pathName := range pathNames {
+        for _, pathName := range pathNames[1:] {
             if id {
                 ids = append(ids, pathName)
                 id = false
