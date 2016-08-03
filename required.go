@@ -65,15 +65,12 @@ func isZero(value reflect.Value) bool {
 
 func isRequired(fieldType reflect.StructField, action string) bool {
     for _, data := range strings.Split(fieldType.Tag.Get("rest"), ",") {
-        if startsWith(data, requiredDataPrefix) {
+        data = strings.TrimSpace(data)
+        if strings.HasPrefix(data, requiredDataPrefix) {
             return contains(strings.Split(data[len(requiredDataPrefix):], ":"), action)
         }
     }
     return false
-}
-
-func startsWith(data, prefix string) bool {
-    return data[:len(prefix)] == prefix
 }
 
 func contains(actions []string, action string) bool {
