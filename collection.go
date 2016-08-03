@@ -225,7 +225,7 @@ func (collection *Collection) handleDelete(ids []string, response http.ResponseW
 
 func marshal(v interface{}, request *http.Request) ([]byte, error) {
     if indentParam := request.URL.Query().Get("indent"); indentParam != "" {
-        if indentCount, err := strconv.Atoi(indentParam); err == nil && indentCount <= 32 {
+        if indentCount, err := strconv.Atoi(indentParam); err == nil && 0 < indentCount && indentCount <= 32 {
             return json.MarshalIndent(v, "", strings.Repeat(" ", indentCount))
         }
     }
