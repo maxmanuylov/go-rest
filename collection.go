@@ -3,12 +3,18 @@ package rest
 import (
     "encoding/json"
     "fmt"
+    "github.com/maxmanuylov/go-rest/error"
     "io/ioutil"
     "net/http"
     "path"
     "reflect"
     "strconv"
     "strings"
+)
+
+var (
+    ErrNotFound = rest_error.NewByCode(http.StatusNotFound)
+    ErrMethodNotAllowed = rest_error.NewByCode(http.StatusMethodNotAllowed)
 )
 
 type ResourceHandler interface {
@@ -255,11 +261,11 @@ func (collection *Collection) readItem(request *http.Request, action string) (in
     item := collection.handler.EmptyItem()
 
     if err := json.Unmarshal(itemJson, item); err != nil {
-        return nil, &Error{code: http.StatusBadRequest, message: err.Error()}
+        return nil, rest_error.New(http.StatusBadRequest, err.Error())
     }
 
     if err := checkRequiredFields(item, action); err != nil {
-        return nil, &Error{code: http.StatusBadRequest, message: err.Error()}
+        return nil, rest_error.New(http.StatusBadRequest, err.Error())
     }
 
     return item, nil
@@ -267,8 +273,8 @@ func (collection *Collection) readItem(request *http.Request, action string) (in
 
 func writeError(response http.ResponseWriter, err error) {
     code := http.StatusInternalServerError
-    if restError, ok := err.(*Error); ok {
-        code = restError.code
+    if restError, ok := err.(*rest_error.Error); ok {
+        code = restError.Code
     }
     http.Error(response, err.Error(), code)
 }
