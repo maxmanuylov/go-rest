@@ -104,7 +104,7 @@ func (collection *collectionClient) CreateJson(itemJson []byte) (string, error) 
 func (collection *collectionClient) Update(id string, item interface{}) error {
     itemJson, err := json.Marshal(item)
     if err != nil {
-        return "", err
+        return err
     }
     return collection.UpdateJson(id, itemJson)
 }
@@ -117,7 +117,7 @@ func (collection *collectionClient) UpdateJson(id string, itemJson []byte) error
 func (collection *collectionClient) Replace(id string, item interface{}) error {
     itemJson, err := json.Marshal(item)
     if err != nil {
-        return "", err
+        return err
     }
     return collection.ReplaceJson(id, itemJson)
 }

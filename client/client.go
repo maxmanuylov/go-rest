@@ -50,8 +50,8 @@ func (client *Client) Do(method, path string, contentJson []byte) (*http.Respons
 
     message, err := ioutil.ReadAll(response.Body)
 
-    if err == nil && message != "" {
-        return nil, rest_error.New(response.StatusCode, message)
+    if err == nil && message != nil {
+        return nil, rest_error.New(response.StatusCode, string(message))
     } else {
         return nil, rest_error.NewByCode(response.StatusCode)
     }
