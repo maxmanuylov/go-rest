@@ -10,6 +10,11 @@ import (
     "strings"
 )
 
+const (
+    Json = "application/json"
+    Yaml = "application/yaml"
+)
+
 type Client struct {
     serverUrl  string
     httpClient *http.Client
@@ -22,10 +27,10 @@ func New(serverUrl string, httpClient *http.Client) *Client {
     }
 }
 
-func (client *Client) Do(method, path string, contentJson []byte) (*http.Response, error) {
+func (client *Client) Do(method, path, contentType string, content []byte) (*http.Response, error) {
     var contentReader io.Reader
-    if contentJson != nil {
-        contentReader = bytes.NewReader(contentJson)
+    if content != nil {
+        contentReader = bytes.NewReader(content)
     }
 
     url := fmt.Sprintf("%s/%s", strings.TrimSuffix(client.serverUrl, "/"), strings.TrimPrefix(path, "/"))
@@ -35,8 +40,13 @@ func (client *Client) Do(method, path string, contentJson []byte) (*http.Respons
         return nil, err
     }
 
-    request.Header.Add("Content-Type", "application/json")
-    request.Header.Add("Accept", "application/json")
+    if contentType != "" {
+        if content != nil {
+            request.Header.Add("Content-Type", contentType)
+        }
+        request.Header.Add("Accept", contentType)
+    }
+
     request.Header.Add("User-Agent", "curl/7.43.0")
 
     response, err := client.httpClient.Do(request)

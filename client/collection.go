@@ -12,18 +12,23 @@ type CollectionClient interface {
 
     List(items interface{}) error
     ListJson() ([]byte, error)
+    ListYaml() ([]byte, error)
 
     Get(id string, item interface{}) error
     GetJson(id string) ([]byte, error)
+    GetYaml(id string) ([]byte, error)
 
     Create(item interface{}) (string, error)
     CreateJson(itemJson []byte) (string, error)
+    CreateYaml(itemYaml []byte) (string, error)
 
     Update(id string, item interface{}) error
     UpdateJson(id string, itemJson []byte) error
+    UpdateYaml(id string, itemYaml []byte) error
 
     Replace(id string, item interface{}) error
     ReplaceJson(id string, itemJson []byte) error
+    ReplaceYaml(id string, itemYaml []byte) error
 
     Delete(id string) error
 }
@@ -56,7 +61,11 @@ func (collection *collectionClient) List(items interface{}) error {
 }
 
 func (collection *collectionClient) ListJson() ([]byte, error) {
-    return collection.doGet(collection.path)
+    return collection.doGet(collection.path, Json)
+}
+
+func (collection *collectionClient) ListYaml() ([]byte, error) {
+    return collection.doGet(collection.path, Yaml)
 }
 
 func (collection *collectionClient) Get(id string, item interface{}) error {
@@ -68,11 +77,15 @@ func (collection *collectionClient) Get(id string, item interface{}) error {
 }
 
 func (collection *collectionClient) GetJson(id string) ([]byte, error) {
-    return collection.doGet(collection.itemPath(id))
+    return collection.doGet(collection.itemPath(id), Json)
 }
 
-func (collection *collectionClient) doGet(path string) ([]byte, error) {
-    response, err := collection.client.Do("GET", path, nil)
+func (collection *collectionClient) GetYaml(id string) ([]byte, error) {
+    return collection.doGet(collection.itemPath(id), Yaml)
+}
+
+func (collection *collectionClient) doGet(path, contentType string) ([]byte, error) {
+    response, err := collection.client.Do("GET", path, contentType, nil)
     if err != nil {
         return nil, err
     }
@@ -88,7 +101,15 @@ func (collection *collectionClient) Create(item interface{}) (string, error) {
 }
 
 func (collection *collectionClient) CreateJson(itemJson []byte) (string, error) {
-    response, err := collection.client.Do("POST", collection.path, itemJson)
+    return collection.doCreate(Json, itemJson)
+}
+
+func (collection *collectionClient) CreateYaml(itemYaml []byte) (string, error) {
+    return collection.doCreate(Yaml, itemYaml)
+}
+
+func (collection *collectionClient) doCreate(contentType string, itemContent []byte) (string, error) {
+    response, err := collection.client.Do("POST", collection.path, contentType, itemContent)
     if err != nil {
         return "", err
     }
@@ -110,7 +131,15 @@ func (collection *collectionClient) Update(id string, item interface{}) error {
 }
 
 func (collection *collectionClient) UpdateJson(id string, itemJson []byte) error {
-    _, err := collection.client.Do("POST", collection.itemPath(id), itemJson)
+    return collection.doUpdate(id, Json, itemJson)
+}
+
+func (collection *collectionClient) UpdateYaml(id string, itemYaml []byte) error {
+    return collection.doUpdate(id, Yaml, itemYaml)
+}
+
+func (collection *collectionClient) doUpdate(id, contentType string, itemContent []byte) error {
+    _, err := collection.client.Do("POST", collection.itemPath(id), contentType, itemContent)
     return err
 }
 
@@ -123,12 +152,20 @@ func (collection *collectionClient) Replace(id string, item interface{}) error {
 }
 
 func (collection *collectionClient) ReplaceJson(id string, itemJson []byte) error {
-    _, err := collection.client.Do("PUT", collection.itemPath(id), itemJson)
+    return collection.doReplace(id, Json, itemJson)
+}
+
+func (collection *collectionClient) ReplaceYaml(id string, itemYaml []byte) error {
+    return collection.doReplace(id, Yaml, itemYaml)
+}
+
+func (collection *collectionClient) doReplace(id, contentType string, itemContent []byte) error {
+    _, err := collection.client.Do("PUT", collection.itemPath(id), contentType, itemContent)
     return err
 }
 
 func (collection *collectionClient) Delete(id string) error {
-    _, err := collection.client.Do("DELETE", collection.itemPath(id), nil)
+    _, err := collection.client.Do("DELETE", collection.itemPath(id), "", nil)
     return err
 }
 
