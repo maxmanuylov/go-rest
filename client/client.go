@@ -61,7 +61,7 @@ func (client *Client) Do(method, path, contentType string, content []byte) (*htt
     message, err := ioutil.ReadAll(response.Body)
 
     if err == nil && message != nil {
-        return nil, rest_error.New(response.StatusCode, string(message))
+        return nil, rest_error.New(response.StatusCode, fmt.Sprintf("\n%s", string(message)))
     } else {
         return nil, rest_error.NewByCode(response.StatusCode)
     }
