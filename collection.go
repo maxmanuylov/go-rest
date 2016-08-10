@@ -21,7 +21,7 @@ type ResourceHandler interface {
     EmptyItem() interface{}
     Create(ids []string, item interface{}) (string, error)
     Read(ids []string) (interface{}, error)
-    List(ids []string) ([]interface{}, error)
+    List(ids []string) (interface{}, error)
     Update(ids []string, item interface{}) error
     Replace(ids []string, item interface{}) error
     Delete(ids []string) error
