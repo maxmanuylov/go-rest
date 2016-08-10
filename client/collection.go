@@ -11,6 +11,7 @@ import (
 
 type Collection interface {
     SubCollection(parentItemId, name string) Collection
+    With(paramName string, paramValues... string) Collection
 
     List(items interface{}) error
     ListJson() ([]byte, error)
