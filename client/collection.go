@@ -119,29 +119,41 @@ func (collection *_collection) Create(item interface{}) (string, error) {
     if err != nil {
         return "", err
     }
-    return collection.CreateJson(itemJson)
+
+    response, id, err := collection.doCreate(Json, itemJson)
+    if response != nil && err == http.ErrNoLocation {
+        if newItemJson, err2 := ioutil.ReadAll(response.Body); err2 == nil {
+            if json.Unmarshal(newItemJson, item) == nil {
+                err = nil
+            }
+        }
+    }
+
+    return id, err
 }
 
 func (collection *_collection) CreateJson(itemJson []byte) (string, error) {
-    return collection.doCreate(Json, itemJson)
+    _, id, err := collection.doCreate(Json, itemJson)
+    return id, err
 }
 
 func (collection *_collection) CreateYaml(itemYaml []byte) (string, error) {
-    return collection.doCreate(Yaml, itemYaml)
+    _, id, err := collection.doCreate(Yaml, itemYaml)
+    return id, err
 }
 
-func (collection *_collection) doCreate(contentType string, itemContent []byte) (string, error) {
+func (collection *_collection) doCreate(contentType string, itemContent []byte) (*http.Response, string, error) {
     response, err := collection.do("POST", collection.path, contentType, itemContent)
     if err != nil {
-        return "", err
+        return nil, "", err
     }
 
     location, err := response.Location()
     if err != nil {
-        return "", err
+        return response, "", err
     }
 
-    return strings.TrimPrefix(strings.TrimPrefix(location.Path, "/"), collection.path), nil
+    return response, strings.TrimPrefix(strings.TrimPrefix(location.Path, "/"), collection.path), nil
 }
 
 func (collection *_collection) Update(id string, item interface{}) error {
