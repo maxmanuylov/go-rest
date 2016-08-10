@@ -4,6 +4,8 @@ import (
     "encoding/json"
     "fmt"
     "io/ioutil"
+    "net/http"
+    "net/url"
     "strings"
 )
 
@@ -35,6 +37,7 @@ type Collection interface {
 
 type _collection struct {
     path    string
+    query   url.Values
     client  *Client
 }
 
@@ -48,6 +51,24 @@ func (client *Client) Collection(name string) Collection {
 func (collection *_collection) SubCollection(parentItemId, name string) Collection {
     return &_collection{
         path: fmt.Sprintf("%s%s/%s/", collection.path, strings.Trim(parentItemId, "/"), strings.Trim(name, "/")),
+        query: collection.query,
+        client: collection.client,
+    }
+}
+
+func (collection *_collection) With(paramName string, paramValues... string) Collection {
+    newQuery := make(url.Values)
+    if collection.query != nil {
+        for key, values := range collection.query {
+            newQuery[key] = values
+        }
+    }
+
+    newQuery[paramName] = paramValues
+
+    return &_collection{
+        path: collection.path,
+        query: newQuery,
         client: collection.client,
     }
 }
@@ -85,7 +106,7 @@ func (collection *_collection) GetYaml(id string) ([]byte, error) {
 }
 
 func (collection *_collection) doGet(path, contentType string) ([]byte, error) {
-    response, err := collection.client.Do("GET", path, contentType, nil)
+    response, err := collection.do("GET", path, contentType, nil)
     if err != nil {
         return nil, err
     }
@@ -109,7 +130,7 @@ func (collection *_collection) CreateYaml(itemYaml []byte) (string, error) {
 }
 
 func (collection *_collection) doCreate(contentType string, itemContent []byte) (string, error) {
-    response, err := collection.client.Do("POST", collection.path, contentType, itemContent)
+    response, err := collection.do("POST", collection.path, contentType, itemContent)
     if err != nil {
         return "", err
     }
@@ -139,7 +160,7 @@ func (collection *_collection) UpdateYaml(id string, itemYaml []byte) error {
 }
 
 func (collection *_collection) doUpdate(id, contentType string, itemContent []byte) error {
-    _, err := collection.client.Do("POST", collection.itemPath(id), contentType, itemContent)
+    _, err := collection.do("POST", collection.itemPath(id), contentType, itemContent)
     return err
 }
 
@@ -160,13 +181,23 @@ func (collection *_collection) ReplaceYaml(id string, itemYaml []byte) error {
 }
 
 func (collection *_collection) doReplace(id, contentType string, itemContent []byte) error {
-    _, err := collection.client.Do("PUT", collection.itemPath(id), contentType, itemContent)
+    _, err := collection.do("PUT", collection.itemPath(id), contentType, itemContent)
     return err
 }
 
 func (collection *_collection) Delete(id string) error {
-    _, err := collection.client.Do("DELETE", collection.itemPath(id), "", nil)
+    _, err := collection.do("DELETE", collection.itemPath(id), "", nil)
     return err
+}
+
+func (collection *_collection) do(method, path, contentType string, content []byte) (*http.Response, error) {
+    queryPath := path
+
+    if collection.query != nil && len(collection.query) != 0 {
+        queryPath = fmt.Sprintf("%s?%s", path, collection.query.Encode())
+    }
+
+    return collection.client.Do(method, queryPath, contentType, content)
 }
 
 func (collection *_collection) itemPath(id string) string {
