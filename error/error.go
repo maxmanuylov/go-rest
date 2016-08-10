@@ -32,6 +32,6 @@ func NewByCode(code int) *Error {
 func New(code int, message string) *Error {
     return &Error{
         Code: code,
-        Message: fmt.Sprintf("%d %s\n%s", code, http.StatusText(code), message),
+        Message: fmt.Sprintf("%d %s: %s", code, http.StatusText(code), message),
     }
 }
