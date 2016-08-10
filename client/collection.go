@@ -7,8 +7,8 @@ import (
     "strings"
 )
 
-type CollectionClient interface {
-    SubCollection(parentItemId, name string) CollectionClient
+type Collection interface {
+    SubCollection(parentItemId, name string) Collection
 
     List(items interface{}) error
     ListJson() ([]byte, error)
@@ -33,26 +33,26 @@ type CollectionClient interface {
     Delete(id string) error
 }
 
-type collectionClient struct {
+type collection struct {
     path    string
     client  *Client
 }
 
-func (client *Client) Collection(name string) CollectionClient {
-    return &collectionClient{
+func (client *Client) Collection(name string) Collection {
+    return &collection{
         path: fmt.Sprintf("%s/", strings.Trim(name, "/")),
         client: client,
     }
 }
 
-func (collection *collectionClient) SubCollection(parentItemId, name string) CollectionClient {
-    return &collectionClient{
+func (collection *collection) SubCollection(parentItemId, name string) Collection {
+    return &collection{
         path: fmt.Sprintf("%s%s/%s/", collection.path, strings.Trim(parentItemId, "/"), strings.Trim(name, "/")),
         client: collection.client,
     }
 }
 
-func (collection *collectionClient) List(items interface{}) error {
+func (collection *collection) List(items interface{}) error {
     itemsJson, err := collection.ListJson()
     if err != nil {
         return err
@@ -60,15 +60,15 @@ func (collection *collectionClient) List(items interface{}) error {
     return json.Unmarshal(itemsJson, items)
 }
 
-func (collection *collectionClient) ListJson() ([]byte, error) {
+func (collection *collection) ListJson() ([]byte, error) {
     return collection.doGet(collection.path, Json)
 }
 
-func (collection *collectionClient) ListYaml() ([]byte, error) {
+func (collection *collection) ListYaml() ([]byte, error) {
     return collection.doGet(collection.path, Yaml)
 }
 
-func (collection *collectionClient) Get(id string, item interface{}) error {
+func (collection *collection) Get(id string, item interface{}) error {
     itemJson, err := collection.GetJson(id)
     if err != nil {
         return err
@@ -76,15 +76,15 @@ func (collection *collectionClient) Get(id string, item interface{}) error {
     return json.Unmarshal(itemJson, item)
 }
 
-func (collection *collectionClient) GetJson(id string) ([]byte, error) {
+func (collection *collection) GetJson(id string) ([]byte, error) {
     return collection.doGet(collection.itemPath(id), Json)
 }
 
-func (collection *collectionClient) GetYaml(id string) ([]byte, error) {
+func (collection *collection) GetYaml(id string) ([]byte, error) {
     return collection.doGet(collection.itemPath(id), Yaml)
 }
 
-func (collection *collectionClient) doGet(path, contentType string) ([]byte, error) {
+func (collection *collection) doGet(path, contentType string) ([]byte, error) {
     response, err := collection.client.Do("GET", path, contentType, nil)
     if err != nil {
         return nil, err
@@ -92,7 +92,7 @@ func (collection *collectionClient) doGet(path, contentType string) ([]byte, err
     return ioutil.ReadAll(response.Body)
 }
 
-func (collection *collectionClient) Create(item interface{}) (string, error) {
+func (collection *collection) Create(item interface{}) (string, error) {
     itemJson, err := json.Marshal(item)
     if err != nil {
         return "", err
@@ -100,15 +100,15 @@ func (collection *collectionClient) Create(item interface{}) (string, error) {
     return collection.CreateJson(itemJson)
 }
 
-func (collection *collectionClient) CreateJson(itemJson []byte) (string, error) {
+func (collection *collection) CreateJson(itemJson []byte) (string, error) {
     return collection.doCreate(Json, itemJson)
 }
 
-func (collection *collectionClient) CreateYaml(itemYaml []byte) (string, error) {
+func (collection *collection) CreateYaml(itemYaml []byte) (string, error) {
     return collection.doCreate(Yaml, itemYaml)
 }
 
-func (collection *collectionClient) doCreate(contentType string, itemContent []byte) (string, error) {
+func (collection *collection) doCreate(contentType string, itemContent []byte) (string, error) {
     response, err := collection.client.Do("POST", collection.path, contentType, itemContent)
     if err != nil {
         return "", err
@@ -122,7 +122,7 @@ func (collection *collectionClient) doCreate(contentType string, itemContent []b
     return strings.TrimPrefix(strings.TrimPrefix(location.Path, "/"), collection.path), nil
 }
 
-func (collection *collectionClient) Update(id string, item interface{}) error {
+func (collection *collection) Update(id string, item interface{}) error {
     itemJson, err := json.Marshal(item)
     if err != nil {
         return err
@@ -130,20 +130,20 @@ func (collection *collectionClient) Update(id string, item interface{}) error {
     return collection.UpdateJson(id, itemJson)
 }
 
-func (collection *collectionClient) UpdateJson(id string, itemJson []byte) error {
+func (collection *collection) UpdateJson(id string, itemJson []byte) error {
     return collection.doUpdate(id, Json, itemJson)
 }
 
-func (collection *collectionClient) UpdateYaml(id string, itemYaml []byte) error {
+func (collection *collection) UpdateYaml(id string, itemYaml []byte) error {
     return collection.doUpdate(id, Yaml, itemYaml)
 }
 
-func (collection *collectionClient) doUpdate(id, contentType string, itemContent []byte) error {
+func (collection *collection) doUpdate(id, contentType string, itemContent []byte) error {
     _, err := collection.client.Do("POST", collection.itemPath(id), contentType, itemContent)
     return err
 }
 
-func (collection *collectionClient) Replace(id string, item interface{}) error {
+func (collection *collection) Replace(id string, item interface{}) error {
     itemJson, err := json.Marshal(item)
     if err != nil {
         return err
@@ -151,24 +151,24 @@ func (collection *collectionClient) Replace(id string, item interface{}) error {
     return collection.ReplaceJson(id, itemJson)
 }
 
-func (collection *collectionClient) ReplaceJson(id string, itemJson []byte) error {
+func (collection *collection) ReplaceJson(id string, itemJson []byte) error {
     return collection.doReplace(id, Json, itemJson)
 }
 
-func (collection *collectionClient) ReplaceYaml(id string, itemYaml []byte) error {
+func (collection *collection) ReplaceYaml(id string, itemYaml []byte) error {
     return collection.doReplace(id, Yaml, itemYaml)
 }
 
-func (collection *collectionClient) doReplace(id, contentType string, itemContent []byte) error {
+func (collection *collection) doReplace(id, contentType string, itemContent []byte) error {
     _, err := collection.client.Do("PUT", collection.itemPath(id), contentType, itemContent)
     return err
 }
 
-func (collection *collectionClient) Delete(id string) error {
+func (collection *collection) Delete(id string) error {
     _, err := collection.client.Do("DELETE", collection.itemPath(id), "", nil)
     return err
 }
 
-func (collection *collectionClient) itemPath(id string) string {
+func (collection *collection) itemPath(id string) string {
     return fmt.Sprintf("%s%s", collection.path, id)
 }
