@@ -264,7 +264,7 @@ func (collection *Collection) readItem(request *http.Request, action string) (in
         return nil, rest_error.New(http.StatusBadRequest, err.Error())
     }
 
-    if err := checkRequiredFields(item, action); err != nil {
+    if err := checkRestrictions(item, action); err != nil {
         return nil, rest_error.New(http.StatusBadRequest, err.Error())
     }
 
