@@ -72,8 +72,11 @@ func getProblemFields(value reflect.Value, action string, checkArrayIsNotEmpty b
             r := getRestrictions(fieldType, action)
 
             if isZero(field) {
-                if r.oneOfKey != "" {
-                    getOrCreateOneOf(oneOfIndex, r.oneOfKey).addZeroField(getFieldName(fieldType), r.required)
+                if len(r.oneOfKeys) != 0 {
+                    fieldName := getFieldName(fieldType)
+                    for _, oneOfKey := range r.oneOfKeys {
+                        getOrCreateOneOf(oneOfIndex, oneOfKey).addZeroField(fieldName, r.required)
+                    }
                 } else if r.required {
                     return &problemFields{
                         paths: []string{fmt.Sprintf(".%s", getFieldName(fieldType))},
@@ -81,8 +84,11 @@ func getProblemFields(value reflect.Value, action string, checkArrayIsNotEmpty b
                     }
                 }
             } else {
-                if r.oneOfKey != "" {
-                    getOrCreateOneOf(oneOfIndex, r.oneOfKey).addSpecifiedField(getFieldName(fieldType), r.required)
+                if len(r.oneOfKeys) != 0 {
+                    fieldName := getFieldName(fieldType)
+                    for _, oneOfKey := range r.oneOfKeys {
+                        getOrCreateOneOf(oneOfIndex, oneOfKey).addSpecifiedField(fieldName, r.required)
+                    }
                 }
                 if fields := getProblemFields(field, action, r.nonEmptyArray); fields != nil {
                     return fields.withPrefix(fmt.Sprintf(".%s", getFieldName(fieldType)))
@@ -114,12 +120,17 @@ func isZero(value reflect.Value) bool {
 }
 
 func getRestrictions(fieldType reflect.StructField, action string) *restrictions {
-    r := &restrictions{}
+    r := &restrictions{
+        oneOfKeys: make([]string, 0),
+    }
 
     for _, data := range strings.Split(fieldType.Tag.Get("rest"), ",") {
         data = strings.TrimSpace(data)
         if strings.HasPrefix(data, oneOfPrefix) {
-            r.oneOfKey = data[len(oneOfPrefix):]
+            oneOfKey := data[len(oneOfPrefix):]
+            if !contains(r.oneOfKeys, oneOfKey) {
+                r.oneOfKeys = append(r.oneOfKeys, oneOfKey)
+            }
         } else if strings.HasPrefix(data, requiredPrefix) {
             if actionIsSuitable(data[len(requiredPrefix):], action) {
                 r.required = true
@@ -133,13 +144,22 @@ func getRestrictions(fieldType reflect.StructField, action string) *restrictions
 }
 
 func actionIsSuitable(actionSpec, action string) bool {
-    return actionSpec == "*" || contains(strings.Split(actionSpec, ":"), action)
+    return actionSpec == "*" || containsIgnoreCase(strings.Split(actionSpec, ":"), action)
 }
 
-func contains(actions []string, action string) bool {
-    ourAction := strings.ToLower(action)
-    for _, _action := range actions {
-        if ourAction == strings.ToLower(_action) {
+func containsIgnoreCase(strs []string, str string) bool {
+    ourStr := strings.ToLower(str)
+    for _, _str := range strs {
+        if ourStr == strings.ToLower(_str) {
+            return true
+        }
+    }
+    return false
+}
+
+func contains(strs []string, str string) bool {
+    for _, _str := range strs {
+        if str == _str {
             return true
         }
     }
@@ -198,7 +218,7 @@ func (data *oneOfData) toProblem(problem problem) *problemFields {
 type restrictions struct {
     nonEmptyArray bool
     required      bool
-    oneOfKey      string
+    oneOfKeys     []string
 }
 
 /* *** */
