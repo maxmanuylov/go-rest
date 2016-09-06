@@ -3,6 +3,7 @@ package rest_client
 import (
     "encoding/json"
     "fmt"
+    "github.com/maxmanuylov/go-rest/error"
     "io/ioutil"
     "net/http"
     "net/url"
@@ -12,6 +13,7 @@ import (
 type Collection interface {
     SubCollection(parentItemId, name string) Collection
     With(paramName string, paramValues... string) Collection
+    Ignoring(errorCodes... int) Collection
 
     List(items interface{}) error
     ListJson() ([]byte, error)
@@ -37,9 +39,10 @@ type Collection interface {
 }
 
 type _collection struct {
-    path    string
-    query   url.Values
-    client  *Client
+    path        string
+    query       url.Values
+    ignoreCodes map[int]bool
+    client      *Client
 }
 
 func (client *Client) Collection(name string) Collection {
@@ -53,6 +56,7 @@ func (collection *_collection) SubCollection(parentItemId, name string) Collecti
     return &_collection{
         path: fmt.Sprintf("%s%s/%s/", collection.path, strings.Trim(parentItemId, "/"), strings.Trim(name, "/")),
         query: collection.query,
+        ignoreCodes: collection.ignoreCodes,
         client: collection.client,
     }
 }
@@ -70,13 +74,34 @@ func (collection *_collection) With(paramName string, paramValues... string) Col
     return &_collection{
         path: collection.path,
         query: newQuery,
+        ignoreCodes: collection.ignoreCodes,
+        client: collection.client,
+    }
+}
+
+func (collection *_collection) Ignoring(errorCodes... int) Collection {
+    newIgnoreCodes := make(map[int]bool)
+    if collection.ignoreCodes != nil {
+        for key, value := range collection.ignoreCodes {
+            newIgnoreCodes[key] = value
+        }
+    }
+
+    for _, errorCode := range errorCodes {
+        newIgnoreCodes[errorCode] = true
+    }
+
+    return &_collection{
+        path: collection.path,
+        query: collection.query,
+        ignoreCodes: newIgnoreCodes,
         client: collection.client,
     }
 }
 
 func (collection *_collection) List(items interface{}) error {
     itemsJson, err := collection.ListJson()
-    if err != nil {
+    if err != nil || itemsJson == nil {
         return err
     }
     return json.Unmarshal(itemsJson, items)
@@ -92,7 +117,7 @@ func (collection *_collection) ListYaml() ([]byte, error) {
 
 func (collection *_collection) Get(id string, item interface{}) error {
     itemJson, err := collection.GetJson(id)
-    if err != nil {
+    if err != nil || itemJson == nil {
         return err
     }
     return json.Unmarshal(itemJson, item)
@@ -108,7 +133,7 @@ func (collection *_collection) GetYaml(id string) ([]byte, error) {
 
 func (collection *_collection) doGet(path, contentType string) ([]byte, error) {
     response, err := collection.do("GET", path, contentType, nil)
-    if err != nil {
+    if err != nil || response == nil {
         return nil, err
     }
     return ioutil.ReadAll(response.Body)
@@ -144,7 +169,7 @@ func (collection *_collection) CreateYaml(itemYaml []byte) (string, error) {
 
 func (collection *_collection) doCreate(contentType string, itemContent []byte) (*http.Response, string, error) {
     response, err := collection.do("POST", collection.path, contentType, itemContent)
-    if err != nil {
+    if err != nil || response == nil {
         return nil, "", err
     }
 
@@ -210,7 +235,15 @@ func (collection *_collection) do(method, path, contentType string, content []by
         queryPath = fmt.Sprintf("%s?%s", path, collection.query.Encode())
     }
 
-    return collection.client.Do(method, queryPath, contentType, content)
+    response, err := collection.client.Do(method, queryPath, contentType, content)
+
+    if err != nil && collection.ignoreCodes != nil {
+        if restErr, ok := err.(*rest_error.Error); ok && collection.ignoreCodes[restErr.Code] {
+            return nil, nil
+        }
+    }
+
+    return response, err
 }
 
 func (collection *_collection) itemPath(id string) string {
