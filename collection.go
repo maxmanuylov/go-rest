@@ -52,9 +52,7 @@ func (server *Server) Collection(name string, handler ResourceHandler) *Collecti
         panic("Empty collection name")
     }
 
-    pattern := fmt.Sprintf("/%s/", name)
-
-    server.mux.HandleFunc(pattern, func(response http.ResponseWriter, request *http.Request) {
+    handlerFunc := func(response http.ResponseWriter, request *http.Request) {
         pathNames := strings.FieldsFunc(strings.TrimSpace(request.URL.Path), func(r rune) bool {
             return r == '/'
         })
@@ -83,7 +81,10 @@ func (server *Server) Collection(name string, handler ResourceHandler) *Collecti
         }
 
         actualCollection.handle(ids, response, request)
-    })
+    }
+
+    server.mux.HandleFunc(fmt.Sprintf("/%s", name), handlerFunc)
+    server.mux.HandleFunc(fmt.Sprintf("/%s/", name), handlerFunc)
 
     return collection
 }

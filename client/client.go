@@ -22,7 +22,7 @@ type Client struct {
 
 func New(serverUrl string, httpClient *http.Client) *Client {
     return &Client{
-        serverUrl: serverUrl,
+        serverUrl: strings.TrimSuffix(serverUrl, "/"),
         httpClient: httpClient,
     }
 }
@@ -33,7 +33,7 @@ func (client *Client) Do(method, path, contentType string, content []byte) (*htt
         contentReader = bytes.NewReader(content)
     }
 
-    url := fmt.Sprintf("%s/%s", strings.TrimSuffix(client.serverUrl, "/"), strings.TrimPrefix(path, "/"))
+    url := fmt.Sprintf("%s/%s", client.serverUrl, strings.TrimPrefix(path, "/"))
 
     request, err := http.NewRequest(method, url, contentReader)
     if err != nil {

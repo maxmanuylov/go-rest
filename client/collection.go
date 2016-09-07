@@ -47,14 +47,14 @@ type _collection struct {
 
 func (client *Client) Collection(name string) Collection {
     return &_collection{
-        path: fmt.Sprintf("%s/", strings.Trim(name, "/")),
+        path: strings.Trim(name, "/"),
         client: client,
     }
 }
 
 func (collection *_collection) SubCollection(parentItemId, name string) Collection {
     return &_collection{
-        path: fmt.Sprintf("%s%s/%s/", collection.path, strings.Trim(parentItemId, "/"), strings.Trim(name, "/")),
+        path: fmt.Sprintf("%s/%s/%s", collection.path, strings.Trim(parentItemId, "/"), strings.Trim(name, "/")),
         query: collection.query,
         ignoreCodes: collection.ignoreCodes,
         client: collection.client,
@@ -178,7 +178,7 @@ func (collection *_collection) doCreate(contentType string, itemContent []byte) 
         return response, "", err
     }
 
-    return response, strings.TrimPrefix(strings.TrimPrefix(location.Path, "/"), collection.path), nil
+    return response, strings.TrimPrefix(strings.TrimPrefix(strings.TrimPrefix(location.Path, "/"), collection.path), "/"), nil
 }
 
 func (collection *_collection) Update(id string, item interface{}) error {
@@ -247,5 +247,5 @@ func (collection *_collection) do(method, path, contentType string, content []by
 }
 
 func (collection *_collection) itemPath(id string) string {
-    return fmt.Sprintf("%s%s", collection.path, id)
+    return fmt.Sprintf("%s/%s", collection.path, id)
 }
