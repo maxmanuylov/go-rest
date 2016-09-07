@@ -10,10 +10,22 @@ import (
     "strings"
 )
 
+type Doable interface {
+    Do(method, contentType string, content []byte) (*http.Response, error)
+}
+
+type CollectionItem interface {
+    Doable
+}
+
 type Collection interface {
+    Doable
+
     SubCollection(parentItemId, name string) Collection
     With(paramName string, paramValues... string) Collection
     Ignoring(errorCodes... int) Collection
+
+    Item(itemId string) CollectionItem
 
     List(items interface{}) error
     ListJson() ([]byte, error)
@@ -95,6 +107,15 @@ func (collection *_collection) Ignoring(errorCodes... int) Collection {
         path: collection.path,
         query: collection.query,
         ignoreCodes: newIgnoreCodes,
+        client: collection.client,
+    }
+}
+
+func (collection *_collection) Item(itemId string) CollectionItem {
+    return &_collection{
+        path: collection.itemPath(itemId),
+        query: collection.query,
+        ignoreCodes: collection.ignoreCodes,
         client: collection.client,
     }
 }
@@ -228,6 +249,10 @@ func (collection *_collection) Delete(id string) error {
     return err
 }
 
+func (collection *_collection) Do(method, contentType string, content []byte) (*http.Response, error) {
+    return collection.do(method, collection.path, contentType, content)
+}
+
 func (collection *_collection) do(method, path, contentType string, content []byte) (*http.Response, error) {
     queryPath := path
 
@@ -247,5 +272,5 @@ func (collection *_collection) do(method, path, contentType string, content []by
 }
 
 func (collection *_collection) itemPath(id string) string {
-    return fmt.Sprintf("%s/%s", collection.path, id)
+    return fmt.Sprintf("%s/%s", collection.path, strings.Trim(id, "/"))
 }
