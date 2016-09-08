@@ -32,7 +32,10 @@ func (client *Client) Do(method, path, contentType string, content []byte) (*htt
     if content != nil {
         contentReader = bytes.NewReader(content)
     }
+    return client.DoStream(method, path, contentType, contentReader)
+}
 
+func (client *Client) DoStream(method, path, contentType string, contentReader io.Reader) (*http.Response, error) {
     url := fmt.Sprintf("%s/%s", client.serverUrl, strings.TrimPrefix(path, "/"))
 
     request, err := http.NewRequest(method, url, contentReader)
@@ -41,7 +44,7 @@ func (client *Client) Do(method, path, contentType string, content []byte) (*htt
     }
 
     if contentType != "" {
-        if content != nil {
+        if contentReader != nil {
             request.Header.Add("Content-Type", contentType)
         }
         request.Header.Add("Accept", contentType)

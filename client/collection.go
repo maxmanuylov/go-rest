@@ -4,6 +4,7 @@ import (
     "encoding/json"
     "fmt"
     "github.com/maxmanuylov/go-rest/error"
+    "io"
     "io/ioutil"
     "net/http"
     "net/url"
@@ -12,6 +13,7 @@ import (
 
 type Doable interface {
     Do(method, contentType string, content []byte) (*http.Response, error)
+    DoStream(method, contentType string, contentReader io.Reader) (*http.Response, error)
 }
 
 type CollectionItem interface {
@@ -253,14 +255,30 @@ func (collection *_collection) Do(method, contentType string, content []byte) (*
     return collection.do(method, collection.path, contentType, content)
 }
 
+func (collection *_collection) DoStream(method, contentType string, contentReader io.Reader) (*http.Response, error) {
+    return collection.doStream(method, collection.path, contentType, contentReader)
+}
+
 func (collection *_collection) do(method, path, contentType string, content []byte) (*http.Response, error) {
+    return collection.doRequest(path, func(queryPath string) (*http.Response, error) {
+        return collection.client.Do(method, queryPath, contentType, content)
+    })
+}
+
+func (collection *_collection) doStream(method, path, contentType string, contentReader io.Reader) (*http.Response, error) {
+    return collection.doRequest(path, func(queryPath string) (*http.Response, error) {
+        return collection.client.DoStream(method, queryPath, contentType, contentReader)
+    })
+}
+
+func (collection *_collection) doRequest(path string, request func(string) (*http.Response, error)) (*http.Response, error) {
     queryPath := path
 
     if collection.query != nil && len(collection.query) != 0 {
         queryPath = fmt.Sprintf("%s?%s", path, collection.query.Encode())
     }
 
-    response, err := collection.client.Do(method, queryPath, contentType, content)
+    response, err := request(queryPath)
 
     if err != nil && collection.ignoreCodes != nil {
         if restErr, ok := err.(*rest_error.Error); ok && collection.ignoreCodes[restErr.Code] {
