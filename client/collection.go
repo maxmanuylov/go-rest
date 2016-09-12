@@ -24,7 +24,8 @@ type Collection interface {
     Doable
 
     SubCollection(parentItemId, name string) Collection
-    With(paramName string, paramValues... string) Collection
+    WithParam(paramName string, paramValues... string) Collection
+    WithHeader(headerName string, headerValues... string) Collection
     Ignoring(errorCodes... int) Collection
 
     Item(itemId string) CollectionItem
@@ -55,6 +56,7 @@ type Collection interface {
 type _collection struct {
     path        string
     query       url.Values
+    headers     []*Header
     ignoreCodes map[int]bool
     client      *Client
 }
@@ -70,12 +72,13 @@ func (collection *_collection) SubCollection(parentItemId, name string) Collecti
     return &_collection{
         path: fmt.Sprintf("%s/%s/%s", collection.path, strings.Trim(parentItemId, "/"), strings.Trim(name, "/")),
         query: collection.query,
+        headers: collection.headers,
         ignoreCodes: collection.ignoreCodes,
         client: collection.client,
     }
 }
 
-func (collection *_collection) With(paramName string, paramValues... string) Collection {
+func (collection *_collection) WithParam(paramName string, paramValues... string) Collection {
     newQuery := make(url.Values)
     if collection.query != nil {
         for key, values := range collection.query {
@@ -88,6 +91,27 @@ func (collection *_collection) With(paramName string, paramValues... string) Col
     return &_collection{
         path: collection.path,
         query: newQuery,
+        headers: collection.headers,
+        ignoreCodes: collection.ignoreCodes,
+        client: collection.client,
+    }
+}
+
+func (collection *_collection) WithHeader(headerName string, headerValues... string) Collection {
+    newHeaders := make([]*Header, len(collection.headers) + 1)
+    if collection.headers != nil {
+        copy(newHeaders, collection.headers)
+    }
+
+    newHeaders[len(collection.headers)] = &Header{
+        Name: headerName,
+        Values: headerValues,
+    }
+
+    return &_collection{
+        path: collection.path,
+        query: collection.query,
+        headers: newHeaders,
         ignoreCodes: collection.ignoreCodes,
         client: collection.client,
     }
@@ -108,6 +132,7 @@ func (collection *_collection) Ignoring(errorCodes... int) Collection {
     return &_collection{
         path: collection.path,
         query: collection.query,
+        headers: collection.headers,
         ignoreCodes: newIgnoreCodes,
         client: collection.client,
     }
@@ -117,6 +142,7 @@ func (collection *_collection) Item(itemId string) CollectionItem {
     return &_collection{
         path: collection.itemPath(itemId),
         query: collection.query,
+        headers: collection.headers,
         ignoreCodes: collection.ignoreCodes,
         client: collection.client,
     }
@@ -261,13 +287,13 @@ func (collection *_collection) DoStream(method, contentType string, contentReade
 
 func (collection *_collection) do(method, path, contentType string, content []byte) (*http.Response, error) {
     return collection.doRequest(path, func(queryPath string) (*http.Response, error) {
-        return collection.client.Do(method, queryPath, contentType, content)
+        return collection.client.Do(method, queryPath, contentType, content, collection.headers...)
     })
 }
 
 func (collection *_collection) doStream(method, path, contentType string, contentReader io.Reader) (*http.Response, error) {
     return collection.doRequest(path, func(queryPath string) (*http.Response, error) {
-        return collection.client.DoStream(method, queryPath, contentType, contentReader)
+        return collection.client.DoStream(method, queryPath, contentType, contentReader, collection.headers...)
     })
 }
 

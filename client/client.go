@@ -27,15 +27,20 @@ func New(serverUrl string, httpClient *http.Client) *Client {
     }
 }
 
-func (client *Client) Do(method, path, contentType string, content []byte) (*http.Response, error) {
+type Header struct {
+    Name   string
+    Values []string
+}
+
+func (client *Client) Do(method, path, contentType string, content []byte, additionalHeaders... *Header) (*http.Response, error) {
     var contentReader io.Reader
     if content != nil {
         contentReader = bytes.NewReader(content)
     }
-    return client.DoStream(method, path, contentType, contentReader)
+    return client.DoStream(method, path, contentType, contentReader, additionalHeaders...)
 }
 
-func (client *Client) DoStream(method, path, contentType string, contentReader io.Reader) (*http.Response, error) {
+func (client *Client) DoStream(method, path, contentType string, contentReader io.Reader, additionalHeaders... *Header) (*http.Response, error) {
     url := fmt.Sprintf("%s/%s", client.serverUrl, strings.TrimPrefix(path, "/"))
 
     request, err := http.NewRequest(method, url, contentReader)
@@ -51,6 +56,14 @@ func (client *Client) DoStream(method, path, contentType string, contentReader i
     }
 
     request.Header.Add("User-Agent", "curl/7.43.0")
+
+    for _, header := range additionalHeaders {
+        if header.Name != "" && header.Values != nil {
+            for _, value := range header.Values {
+                request.Header.Add(header.Name, value)
+            }
+        }
+    }
 
     response, err := client.httpClient.Do(request)
     if err != nil {
