@@ -13,7 +13,6 @@ import (
 )
 
 var (
-    ErrNotFound = rest_error.NewByCode(http.StatusNotFound)
     ErrMethodNotAllowed = rest_error.NewByCode(http.StatusMethodNotAllowed)
 )
 
@@ -66,14 +65,14 @@ func (server *Server) Collection(name string, handler ResourceHandler) *Collecti
         actualCollection := collection
         id := true
 
-        for _, pathName := range pathNames[1:] {
+        for i, pathName := range pathNames[1:] {
             if id {
                 ids = append(ids, pathName)
                 id = false
             } else {
                 actualCollection = actualCollection.subCollections[pathName]
                 if actualCollection == nil {
-                    writeError(response, ErrNotFound)
+                    writeError(response, rest_error.New(http.StatusNotFound, fmt.Sprintf("Path is not found: /%s", strings.Join(pathNames[:i + 2], "/"))))
                     return
                 }
                 id = true
@@ -157,7 +156,7 @@ func (collection *Collection) handleRead(ids []string, response http.ResponseWri
     }
 
     if isNil(item) {
-        writeError(response, ErrNotFound)
+        writeError(response, rest_error.NewByCode(http.StatusNotFound))
         return
     }
 
