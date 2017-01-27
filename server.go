@@ -1,6 +1,7 @@
 package rest
 
 import (
+    "crypto/tls"
     "github.com/maxmanuylov/utils/application"
     "net"
     "net/http"
@@ -33,6 +34,14 @@ func (server *Server) Listen(addr *net.TCPAddr) (net.Listener, error) {
     return tcpKeepAliveListener{tcpListener}, nil
 }
 
+func (server *Server) ListenTLS(addr *net.TCPAddr, config *tls.Config) (net.Listener, error) {
+    innerListener, err := server.Listen(addr)
+    if err != nil {
+        return nil, err
+    }
+    return tls.NewListener(innerListener, config), nil
+}
+
 func (server *Server) Serve(listener net.Listener) {
     httpServer := &http.Server{Handler: server.mux}
     httpServer.Serve(listener)
@@ -59,9 +68,44 @@ func (server *Server) ListenAndServe(addr *net.TCPAddr) error {
     if err != nil {
         return err
     }
+    defer listener.Close()
 
     go server.Serve(listener)
+
+    application.WaitForTermination()
+
+    return nil
+}
+
+func (server *Server) ListenAndServeTLS(addr *net.TCPAddr, config *tls.Config) error {
+    listener, err := server.ListenTLS(addr, config)
+    if err != nil {
+        return err
+    }
     defer listener.Close()
+
+    go server.Serve(listener)
+
+    application.WaitForTermination()
+
+    return nil
+}
+
+func (server *Server) ListenAndServeFull(addr *net.TCPAddr, tlsAddr *net.TCPAddr, config *tls.Config) error {
+    listener, err := server.Listen(addr)
+    if err != nil {
+        return err
+    }
+    defer listener.Close()
+
+    tlsListener, err := server.ListenTLS(tlsAddr, config)
+    if err != nil {
+        return err
+    }
+    defer tlsListener.Close()
+
+    go server.Serve(listener)
+    go server.Serve(tlsListener)
 
     application.WaitForTermination()
 
