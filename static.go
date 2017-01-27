@@ -6,18 +6,21 @@ import (
     "io"
     "net/http"
     "os"
+    "path/filepath"
     "strings"
 )
 
-func (server *Server) Static(pattern, contentType, rootFolder string) {
+func (server *Server) Static(pattern, contentType, folderPath string) {
     path := server.path(pattern)
     if !strings.HasSuffix(path, "/") {
         path = fmt.Sprintf("%s/", path)
     }
-    
+
+    cleanFolderPath := filepath.Clean(folderPath)
+
     server.mux.HandleFunc(path, func(response http.ResponseWriter, request *http.Request) {
-        filePath := fmt.Sprintf("%s/%s", rootFolder, strings.TrimPrefix(strings.TrimSpace(request.URL.Path), path))
-        WriteFile(response, contentType, filePath)
+        filePath := filepath.Join(cleanFolderPath, strings.TrimPrefix(strings.TrimSpace(request.URL.Path), path))
+        WriteFile(response, contentType, filepath.Clean(filePath))
     })
 }
 
