@@ -35,3 +35,7 @@ func New(code int, message string) *Error {
         Message: fmt.Sprintf("%d %s: %s", code, http.StatusText(code), message),
     }
 }
+
+func (err *Error) Send(response http.ResponseWriter) {
+    http.Error(response, err.Message, err.Code)
+}
