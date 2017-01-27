@@ -2,14 +2,17 @@ package rest
 
 import (
     "crypto/tls"
+    "fmt"
     "github.com/maxmanuylov/utils/application"
     "net"
     "net/http"
+    "strings"
     "time"
 )
 
 type Server struct {
-    mux *http.ServeMux
+    mux    *http.ServeMux
+    prefix string
 }
 
 func NewServer() *Server {
@@ -19,11 +22,22 @@ func NewServer() *Server {
 }
 
 func (server *Server) CustomHandler(pattern string, handler http.Handler) {
-    server.mux.Handle(pattern, handler)
+    server.mux.Handle(server.path(pattern), handler)
 }
 
 func (server *Server) CustomHandlerFunc(pattern string, handler func(http.ResponseWriter, *http.Request)) {
-    server.mux.HandleFunc(pattern, handler)
+    server.mux.HandleFunc(server.path(pattern), handler)
+}
+
+func (server *Server) WithPrefix(prefix string) *Server {
+    return &Server{
+        mux: server.mux,
+        prefix: server.path(fmt.Sprintf("/%s", strings.TrimPrefix(strings.TrimSuffix(prefix, "/"), "/"))),
+    }
+}
+
+func (server *Server) path(path string) string {
+    return fmt.Sprintf("%s%s", server.prefix, path)
 }
 
 func (server *Server) Listen(addr *net.TCPAddr) (net.Listener, error) {

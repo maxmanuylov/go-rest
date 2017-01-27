@@ -82,8 +82,8 @@ func (server *Server) Collection(name string, handler ResourceHandler) *Collecti
         actualCollection.handle(ids, response, request)
     }
 
-    server.mux.HandleFunc(fmt.Sprintf("/%s", name), handlerFunc)
-    server.mux.HandleFunc(fmt.Sprintf("/%s/", name), handlerFunc)
+    server.mux.HandleFunc(server.path(fmt.Sprintf("/%s", name)), handlerFunc)
+    server.mux.HandleFunc(server.path(fmt.Sprintf("/%s/", name)), handlerFunc)
 
     return collection
 }

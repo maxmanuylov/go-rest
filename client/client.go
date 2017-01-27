@@ -27,6 +27,10 @@ func New(serverUrl string, httpClient *http.Client) *Client {
     }
 }
 
+func (client *Client) WithPrefix(prefix string) *Client {
+    return New(client.path(prefix), client.httpClient)
+}
+
 type Header struct {
     Name   string
     Values []string
@@ -41,9 +45,7 @@ func (client *Client) Do(method, path, contentType string, content []byte, addit
 }
 
 func (client *Client) DoStream(method, path, contentType string, contentReader io.Reader, additionalHeaders... *Header) (*http.Response, error) {
-    url := fmt.Sprintf("%s/%s", client.serverUrl, strings.TrimPrefix(path, "/"))
-
-    request, err := http.NewRequest(method, url, contentReader)
+    request, err := http.NewRequest(method, client.path(path), contentReader)
     if err != nil {
         return nil, err
     }
@@ -81,4 +83,8 @@ func (client *Client) DoStream(method, path, contentType string, contentReader i
     } else {
         return nil, rest_error.NewByCode(response.StatusCode)
     }
+}
+
+func (client *Client) path(path string) string {
+    return fmt.Sprintf("%s/%s", client.serverUrl, strings.TrimPrefix(path, "/"))
 }
