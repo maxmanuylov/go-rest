@@ -51,10 +51,11 @@ func (server *Server) Collection(name string, handler ResourceHandler) *Collecti
         panic("Empty collection name")
     }
 
+    collectionPath := server.path(fmt.Sprintf("/%s", name))
+    collectionIndex := len(splitPath(collectionPath)) - 1
+
     handlerFunc := func(response http.ResponseWriter, request *http.Request) {
-        pathNames := strings.FieldsFunc(strings.TrimSpace(request.URL.Path), func(r rune) bool {
-            return r == '/'
-        })
+        pathNames := splitPath(request.URL.Path)[collectionIndex:]
 
         if len(pathNames) == 0 { // cannot happen
             writeError(response, fmt.Errorf("Invalid URL path: %s", request.URL.Path))
@@ -82,8 +83,8 @@ func (server *Server) Collection(name string, handler ResourceHandler) *Collecti
         actualCollection.handle(ids, response, request)
     }
 
-    server.mux.HandleFunc(server.path(fmt.Sprintf("/%s", name)), handlerFunc)
-    server.mux.HandleFunc(server.path(fmt.Sprintf("/%s/", name)), handlerFunc)
+    server.mux.HandleFunc(collectionPath, handlerFunc)
+    server.mux.HandleFunc(fmt.Sprintf("%s/", collectionPath), handlerFunc)
 
     return collection
 }
@@ -92,6 +93,12 @@ func (collection *Collection) SubCollection(name string, handler ResourceHandler
     subCollection := newCollection(collection.level + 1, handler)
     collection.subCollections[name] = subCollection
     return subCollection
+}
+
+func splitPath(path string) []string {
+    return strings.FieldsFunc(strings.TrimSpace(path), func(r rune) bool {
+        return r == '/'
+    })
 }
 
 func (collection *Collection) handle(ids []string, response http.ResponseWriter, request *http.Request) {

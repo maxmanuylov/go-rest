@@ -17,7 +17,6 @@ type Server struct {
 
 func NewServer() *Server {
     mux := http.NewServeMux()
-    mux.Handle("/", http.NotFoundHandler())
     return &Server{mux: mux}
 }
 
