@@ -8,6 +8,7 @@ import (
 
 const (
     oneOfPrefix    = "#"
+    readOnlyValue  = "readonly"
     nonEmptyArray  = "nonempty"
     requiredPrefix = "required@"
 )
@@ -15,8 +16,9 @@ const (
 type problem int
 
 const (
-    itemNotSpecified      problem = iota
+    itemNotSpecified       problem = iota
     severalItemsSpecified
+    readOnlyValueSpecified
     emptyArray
 )
 
@@ -25,6 +27,8 @@ func checkRestrictions(item interface{}, action string) error {
         if len(fields.paths) == 1 {
             if fields.problem == emptyArray {
                 return fmt.Errorf("Array is empty: %s", fields.paths[0])
+            } else if fields.problem == readOnlyValueSpecified {
+                return fmt.Errorf("Value is read-only: %s", fields.paths[0])
             } else { // itemNotSpecified
                 return fmt.Errorf("Field is not specified: %s", fields.paths[0])
             }
@@ -84,6 +88,12 @@ func getProblemFields(value reflect.Value, action string, checkArrayIsNotEmpty b
                     }
                 }
             } else {
+                if r.readOnly {
+                    return &problemFields{
+                        paths: []string{fmt.Sprintf(".%s", getFieldName(fieldType))},
+                        problem: readOnlyValueSpecified,
+                    }
+                }
                 if len(r.oneOfKeys) != 0 {
                     fieldName := getFieldName(fieldType)
                     for _, oneOfKey := range r.oneOfKeys {
@@ -137,6 +147,8 @@ func getRestrictions(fieldType reflect.StructField, action string) *restrictions
             }
         } else if data == nonEmptyArray {
             r.nonEmptyArray = true
+        } else if data == readOnlyValue {
+            r.readOnly = true
         }
     }
 
@@ -216,6 +228,7 @@ func (data *oneOfData) toProblem(problem problem) *problemFields {
 /* *** */
 
 type restrictions struct {
+    readOnly      bool
     nonEmptyArray bool
     required      bool
     oneOfKeys     []string
