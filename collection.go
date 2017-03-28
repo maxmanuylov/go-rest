@@ -6,6 +6,7 @@ import (
     "github.com/maxmanuylov/go-rest/error"
     "io/ioutil"
     "net/http"
+    "net/url"
     "path"
     "reflect"
     "strconv"
@@ -16,14 +17,20 @@ var (
     ErrMethodNotAllowed = rest_error.NewByCode(http.StatusMethodNotAllowed)
 )
 
+type Request struct {
+    IDs   []string
+    Query url.Values
+}
+
 type ResourceHandler interface {
     EmptyItem() interface{}
-    Create(ids []string, item interface{}) (string, error)
-    Read(ids []string) (interface{}, error)
-    List(ids []string) (interface{}, error)
-    Update(ids []string, item interface{}) error
-    Replace(ids []string, item interface{}) error
-    Delete(ids []string) error
+    Create(request *Request, item interface{}) (string, error)
+    Read(request *Request) (interface{}, error)
+    List(request *Request) (interface{}, error)
+    Update(request *Request, item interface{}) error
+    Replace(request *Request, item interface{}) error
+    Delete(request *Request) error
+    BatchDelete(request *Request) error
 }
 
 type Collection struct {
@@ -54,11 +61,11 @@ func (server *Server) Collection(name string, handler ResourceHandler) *Collecti
     collectionPath := server.path(fmt.Sprintf("/%s", name))
     collectionIndex := len(splitPath(collectionPath)) - 1
 
-    handlerFunc := func(response http.ResponseWriter, request *http.Request) {
-        pathNames := splitPath(request.URL.Path)[collectionIndex:]
+    handlerFunc := func(response http.ResponseWriter, httpRequest *http.Request) {
+        pathNames := splitPath(httpRequest.URL.Path)[collectionIndex:]
 
         if len(pathNames) == 0 { // cannot happen
-            writeError(response, fmt.Errorf("Invalid URL path: %s", request.URL.Path))
+            writeError(response, fmt.Errorf("Invalid URL path: %s", httpRequest.URL.Path))
             return
         }
 
@@ -80,7 +87,12 @@ func (server *Server) Collection(name string, handler ResourceHandler) *Collecti
             }
         }
 
-        actualCollection.handle(ids, response, request)
+        restRequest := &Request{
+            IDs:   ids,
+            Query: httpRequest.URL.Query(),
+        }
+
+        actualCollection.handle(restRequest, response, httpRequest)
     }
 
     server.mux.HandleFunc(collectionPath, handlerFunc)
@@ -101,37 +113,40 @@ func splitPath(path string) []string {
     })
 }
 
-func (collection *Collection) handle(ids []string, response http.ResponseWriter, request *http.Request) {
-    collectionRequest := collection.level == len(ids)
+func (collection *Collection) handle(restRequest *Request, response http.ResponseWriter, httpRequest *http.Request) {
+    collectionRequest := collection.level == len(restRequest.IDs)
 
-    switch strings.ToUpper(request.Method) {
+    switch strings.ToUpper(httpRequest.Method) {
     case "GET":
         if collectionRequest {
-            collection.handleList(ids, response, request)
+            collection.handleList(restRequest, response)
             return
         } else {
-            collection.handleRead(ids, response, request)
+            collection.handleRead(restRequest, response)
             return
         }
 
     case "POST":
         if collectionRequest {
-            collection.handleCreate(ids, response, request)
+            collection.handleCreate(restRequest, response, httpRequest)
             return
         } else {
-            collection.handleUpdate(ids, response, request)
+            collection.handleUpdate(restRequest, response, httpRequest)
             return
         }
 
     case "PUT":
         if !collectionRequest {
-            collection.handleReplace(ids, response, request)
+            collection.handleReplace(restRequest, response, httpRequest)
             return
         }
 
     case "DELETE":
-        if !collectionRequest {
-            collection.handleDelete(ids, response, request)
+        if collectionRequest {
+            collection.handleBatchDelete(restRequest, response)
+            return
+        } else {
+            collection.handleDelete(restRequest, response)
             return
         }
     }
@@ -139,14 +154,14 @@ func (collection *Collection) handle(ids []string, response http.ResponseWriter,
     writeError(response, ErrMethodNotAllowed)
 }
 
-func (collection *Collection) handleList(ids []string, response http.ResponseWriter, request *http.Request) {
-    items, err := collection.handler.List(ids)
+func (collection *Collection) handleList(restRequest *Request, response http.ResponseWriter) {
+    items, err := collection.handler.List(restRequest)
     if err != nil {
         writeError(response, err)
         return
     }
 
-    itemsJson, err := marshal(items, request)
+    itemsJson, err := marshal(items, restRequest)
     if err != nil {
         writeError(response, err)
         return
@@ -155,8 +170,8 @@ func (collection *Collection) handleList(ids []string, response http.ResponseWri
     writeAnswer(response, http.StatusOK, itemsJson)
 }
 
-func (collection *Collection) handleRead(ids []string, response http.ResponseWriter, request *http.Request) {
-    item, err := collection.handler.Read(ids)
+func (collection *Collection) handleRead(restRequest *Request, response http.ResponseWriter) {
+    item, err := collection.handler.Read(restRequest)
     if err != nil {
         writeError(response, err)
         return
@@ -167,7 +182,7 @@ func (collection *Collection) handleRead(ids []string, response http.ResponseWri
         return
     }
 
-    itemJson, err := marshal(item, request)
+    itemJson, err := marshal(item, restRequest)
     if err != nil {
         writeError(response, err)
         return
@@ -176,34 +191,34 @@ func (collection *Collection) handleRead(ids []string, response http.ResponseWri
     writeAnswer(response, http.StatusOK, itemJson)
 }
 
-func (collection *Collection) handleCreate(ids []string, response http.ResponseWriter, request *http.Request) {
-    item, err := collection.readItem(request, "create")
+func (collection *Collection) handleCreate(restRequest *Request, response http.ResponseWriter, httpRequest *http.Request) {
+    item, err := collection.readItem(httpRequest, "create")
     if err != nil {
         writeError(response, err)
         return
     }
 
-    id, err := collection.handler.Create(ids, item)
+    id, err := collection.handler.Create(restRequest, item)
     if err != nil {
         writeError(response, err)
         return
     }
 
-    relativeLocation := path.Clean(fmt.Sprintf("/%s/%s", strings.Trim(request.URL.Path, "/"), id))
+    relativeLocation := path.Clean(fmt.Sprintf("/%s/%s", strings.Trim(httpRequest.URL.Path, "/"), id))
 
     response.Header().Add("Location", relativeLocation)
 
     writeAnswer(response, http.StatusCreated, nil)
 }
 
-func (collection *Collection) handleUpdate(ids []string, response http.ResponseWriter, request *http.Request) {
-    item, err := collection.readItem(request, "update")
+func (collection *Collection) handleUpdate(restRequest *Request, response http.ResponseWriter, httpRequest *http.Request) {
+    item, err := collection.readItem(httpRequest, "update")
     if err != nil {
         writeError(response, err)
         return
     }
 
-    if err := collection.handler.Update(ids, item); err != nil {
+    if err := collection.handler.Update(restRequest, item); err != nil {
         writeError(response, err)
         return
     }
@@ -211,14 +226,14 @@ func (collection *Collection) handleUpdate(ids []string, response http.ResponseW
     writeAnswer(response, http.StatusOK, nil)
 }
 
-func (collection *Collection) handleReplace(ids []string, response http.ResponseWriter, request *http.Request) {
-    item, err := collection.readItem(request, "replace")
+func (collection *Collection) handleReplace(restRequest *Request, response http.ResponseWriter, httpRequest *http.Request) {
+    item, err := collection.readItem(httpRequest, "replace")
     if err != nil {
         writeError(response, err)
         return
     }
 
-    if err := collection.handler.Replace(ids, item); err != nil {
+    if err := collection.handler.Replace(restRequest, item); err != nil {
         writeError(response, err)
         return
     }
@@ -226,8 +241,17 @@ func (collection *Collection) handleReplace(ids []string, response http.Response
     writeAnswer(response, http.StatusOK, nil)
 }
 
-func (collection *Collection) handleDelete(ids []string, response http.ResponseWriter, request *http.Request) {
-    if err := collection.handler.Delete(ids); err != nil {
+func (collection *Collection) handleDelete(restRequest *Request, response http.ResponseWriter) {
+    if err := collection.handler.Delete(restRequest); err != nil {
+        writeError(response, err)
+        return
+    }
+
+    writeAnswer(response, http.StatusOK, nil)
+}
+
+func (collection *Collection) handleBatchDelete(restRequest *Request, response http.ResponseWriter) {
+    if err := collection.handler.BatchDelete(restRequest); err != nil {
         writeError(response, err)
         return
     }
@@ -250,8 +274,8 @@ func isNil(item interface{}) bool {
     }
 }
 
-func marshal(v interface{}, request *http.Request) ([]byte, error) {
-    if indentParam := request.URL.Query().Get("indent"); indentParam != "" {
+func marshal(v interface{}, restRequest *Request) ([]byte, error) {
+    if indentParam := restRequest.Query.Get("indent"); indentParam != "" {
         if indentCount, err := strconv.Atoi(indentParam); err == nil && 0 < indentCount && indentCount <= 32 {
             return json.MarshalIndent(v, "", strings.Repeat(" ", indentCount))
         }
@@ -259,8 +283,8 @@ func marshal(v interface{}, request *http.Request) ([]byte, error) {
     return json.Marshal(v)
 }
 
-func (collection *Collection) readItem(request *http.Request, action string) (interface{}, error) {
-    itemJson, err := ioutil.ReadAll(request.Body)
+func (collection *Collection) readItem(httpRequest *http.Request, action string) (interface{}, error) {
+    itemJson, err := ioutil.ReadAll(httpRequest.Body)
     if err != nil {
         return nil, err
     }
