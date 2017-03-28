@@ -113,6 +113,11 @@ func splitPath(path string) []string {
     })
 }
 
+func (r *Request) IsFlagSet(flagName string) bool {
+    flag, err := strconv.ParseBool(r.Query.Get(flagName))
+    return err == nil && flag
+}
+
 func (collection *Collection) handle(restRequest *Request, response http.ResponseWriter, httpRequest *http.Request) {
     collectionRequest := collection.level == len(restRequest.IDs)
 
