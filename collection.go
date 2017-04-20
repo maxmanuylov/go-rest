@@ -13,6 +13,14 @@ import (
     "strings"
 )
 
+type ItemAction string
+
+const (
+    Create  ItemAction = "create"
+    Update             = "update"
+    Replace            = "replace"
+)
+
 var (
     ErrMethodNotAllowed = rest_error.NewByCode(http.StatusMethodNotAllowed)
 )
@@ -197,7 +205,7 @@ func (collection *Collection) handleRead(restRequest *Request, response http.Res
 }
 
 func (collection *Collection) handleCreate(restRequest *Request, response http.ResponseWriter, httpRequest *http.Request) {
-    item, err := collection.readItem(httpRequest, "create")
+    item, err := collection.readItem(httpRequest, Create)
     if err != nil {
         writeError(response, err)
         return
@@ -217,7 +225,7 @@ func (collection *Collection) handleCreate(restRequest *Request, response http.R
 }
 
 func (collection *Collection) handleUpdate(restRequest *Request, response http.ResponseWriter, httpRequest *http.Request) {
-    item, err := collection.readItem(httpRequest, "update")
+    item, err := collection.readItem(httpRequest, Update)
     if err != nil {
         writeError(response, err)
         return
@@ -232,7 +240,7 @@ func (collection *Collection) handleUpdate(restRequest *Request, response http.R
 }
 
 func (collection *Collection) handleReplace(restRequest *Request, response http.ResponseWriter, httpRequest *http.Request) {
-    item, err := collection.readItem(httpRequest, "replace")
+    item, err := collection.readItem(httpRequest, Replace)
     if err != nil {
         writeError(response, err)
         return
@@ -288,7 +296,7 @@ func marshal(v interface{}, restRequest *Request) ([]byte, error) {
     return json.Marshal(v)
 }
 
-func (collection *Collection) readItem(httpRequest *http.Request, action string) (interface{}, error) {
+func (collection *Collection) readItem(httpRequest *http.Request, action ItemAction) (interface{}, error) {
     itemJson, err := ioutil.ReadAll(httpRequest.Body)
     if err != nil {
         return nil, err
@@ -300,7 +308,7 @@ func (collection *Collection) readItem(httpRequest *http.Request, action string)
         return nil, rest_error.New(http.StatusBadRequest, err.Error())
     }
 
-    if err := checkRestrictions(item, action); err != nil {
+    if err := CheckRestrictions(item, action); err != nil {
         return nil, rest_error.New(http.StatusBadRequest, err.Error())
     }
 

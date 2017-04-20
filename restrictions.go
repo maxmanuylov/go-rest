@@ -22,7 +22,7 @@ const (
     emptyArray
 )
 
-func checkRestrictions(item interface{}, action string) error {
+func CheckRestrictions(item interface{}, action ItemAction) error {
     if fields := getProblemFields(reflect.ValueOf(item), action, false); fields != nil {
         if len(fields.paths) == 1 {
             if fields.problem == emptyArray {
@@ -41,7 +41,7 @@ func checkRestrictions(item interface{}, action string) error {
     return nil
 }
 
-func getProblemFields(value reflect.Value, action string, checkArrayIsNotEmpty bool) *problemFields {
+func getProblemFields(value reflect.Value, action ItemAction, checkArrayIsNotEmpty bool) *problemFields {
     switch value.Kind() {
     case reflect.Ptr:
         return getProblemFields(value.Elem(), action, checkArrayIsNotEmpty)
@@ -129,7 +129,7 @@ func isZero(value reflect.Value) bool {
     return reflect.DeepEqual(value.Interface(), reflect.Zero(value.Type()).Interface())
 }
 
-func getRestrictions(fieldType reflect.StructField, action string) *restrictions {
+func getRestrictions(fieldType reflect.StructField, action ItemAction) *restrictions {
     r := &restrictions{
         oneOfKeys: make([]string, 0),
     }
@@ -142,7 +142,7 @@ func getRestrictions(fieldType reflect.StructField, action string) *restrictions
                 r.oneOfKeys = append(r.oneOfKeys, oneOfKey)
             }
         } else if strings.HasPrefix(data, requiredPrefix) {
-            if actionIsSuitable(data[len(requiredPrefix):], action) {
+            if action.isSuitable(data[len(requiredPrefix):]) {
                 r.required = true
             }
         } else if data == nonEmptyArray {
@@ -155,8 +155,8 @@ func getRestrictions(fieldType reflect.StructField, action string) *restrictions
     return r
 }
 
-func actionIsSuitable(actionSpec, action string) bool {
-    return actionSpec == "*" || containsIgnoreCase(strings.Split(actionSpec, ":"), action)
+func (action ItemAction) isSuitable(actionSpec string) bool {
+    return actionSpec == "*" || containsIgnoreCase(strings.Split(actionSpec, ":"), string(action))
 }
 
 func containsIgnoreCase(strs []string, str string) bool {
