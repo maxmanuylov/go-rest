@@ -1,6 +1,7 @@
 package rest
 
 import (
+    "bufio"
     "fmt"
     "github.com/maxmanuylov/go-rest/error"
     "io"
@@ -24,7 +25,30 @@ func (server *Server) Static(pattern, contentType, folderPath string) {
     })
 }
 
-func WriteFile(response http.ResponseWriter, contentType string, filePath string) {
+func WriteFile(response http.ResponseWriter, contentType, filePath string) {
+    doWriteFile(response, contentType, filePath, func(file *os.File) {
+        io.Copy(response, file)
+    })
+}
+
+func WriteTemplate(response http.ResponseWriter, contentType, templateFilePath string, replacements map[string]string) {
+    doWriteFile(response, contentType, templateFilePath, func(file *os.File) {
+        scanner := bufio.NewScanner(file)
+        for scanner.Scan() {
+            response.Write(apply(scanner.Text(), replacements))
+        }
+    })
+}
+
+func apply(text string, replacements map[string]string) []byte {
+    result := text
+    for key, value := range replacements {
+        result = strings.Replace(result, key, value, -1)
+    }
+    return []byte(result)
+}
+
+func doWriteFile(response http.ResponseWriter, contentType, filePath string, writeFunc func(file *os.File)) {
     file, err := os.Open(filePath)
     if err != nil {
         if os.IsNotExist(err) {
@@ -50,5 +74,5 @@ func WriteFile(response http.ResponseWriter, contentType string, filePath string
 
     response.Header().Add("Content-Type", contentType)
 
-    io.Copy(response, file)
+    writeFunc(file)
 }
