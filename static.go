@@ -12,6 +12,18 @@ import (
 )
 
 func (server *Server) Static(pattern, contentType, folderPath string) {
+    server.doStatic(pattern, folderPath, func(_ string) string {
+        return contentType
+    })
+}
+
+func (server *Server) StaticExt(pattern, folderPath string, ext2contentType map[string]string) {
+    server.doStatic(pattern, folderPath, func(filePath string) string {
+        return ext2contentType[filepath.Ext(filePath)]
+    })
+}
+
+func (server *Server) doStatic(pattern, folderPath string, contentTypeFunc func(string) string) {
     path := server.path(pattern)
     if !strings.HasSuffix(path, "/") {
         path = fmt.Sprintf("%s/", path)
@@ -21,7 +33,7 @@ func (server *Server) Static(pattern, contentType, folderPath string) {
 
     server.mux.HandleFunc(path, func(response http.ResponseWriter, request *http.Request) {
         filePath := filepath.Join(cleanFolderPath, strings.TrimPrefix(strings.TrimSpace(request.URL.Path), path))
-        WriteFile(response, contentType, filepath.Clean(filePath))
+        WriteFile(response, contentTypeFunc(filePath), filepath.Clean(filePath))
     })
 }
 
@@ -72,7 +84,9 @@ func doWriteFile(response http.ResponseWriter, contentType, filePath string, wri
         return
     }
 
-    response.Header().Add("Content-Type", contentType)
+    if contentType != "" {
+        response.Header().Add("Content-Type", contentType)
+    }
 
     writeFunc(file)
 }
