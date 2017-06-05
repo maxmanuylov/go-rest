@@ -34,6 +34,8 @@ type Collection interface {
     ListJson() ([]byte, error)
     ListYaml() ([]byte, error)
 
+    Exists(id string) (bool, error)
+
     Get(id string, item interface{}) error
     GetJson(id string) ([]byte, error)
     GetYaml(id string) ([]byte, error)
@@ -162,6 +164,14 @@ func (collection *_collection) ListJson() ([]byte, error) {
 
 func (collection *_collection) ListYaml() ([]byte, error) {
     return collection.doGet(collection.path, Yaml)
+}
+
+func (collection *_collection) Exists(id string) (bool, error) {
+    itemJson, err := collection.Ignoring(http.StatusNotFound).GetJson(id)
+    if err != nil || itemJson == nil {
+        return false, err
+    }
+    return true, nil
 }
 
 func (collection *_collection) Get(id string, item interface{}) error {
