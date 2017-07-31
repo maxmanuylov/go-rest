@@ -41,9 +41,14 @@ type ResourceHandler interface {
     BatchDelete(request *Request) error
 }
 
+type ActionHandler interface {
+    Do(request *Request) error
+}
+
 type Collection struct {
     level          int
     handler        ResourceHandler
+    customActions  map[string]ActionHandler
     subCollections map[string]*Collection
 }
 
@@ -51,6 +56,7 @@ func newCollection(level int, handler ResourceHandler) *Collection {
     return &Collection{
         level: level,
         handler: handler,
+        customActions: make(map[string]ActionHandler),
         subCollections: make(map[string]*Collection),
     }
 }
@@ -115,6 +121,11 @@ func (collection *Collection) SubCollection(name string, handler ResourceHandler
     return subCollection
 }
 
+func (collection *Collection) CustomAction(method string, handler ActionHandler) *Collection {
+    collection.customActions[strings.ToUpper(method)] = handler
+    return collection
+}
+
 func splitPath(path string) []string {
     return strings.FieldsFunc(strings.TrimSpace(path), func(r rune) bool {
         return r == '/'
@@ -128,8 +139,9 @@ func (r *Request) IsFlagSet(flagName string) bool {
 
 func (collection *Collection) handle(restRequest *Request, response http.ResponseWriter, httpRequest *http.Request) {
     collectionRequest := collection.level == len(restRequest.IDs)
+    method := strings.ToUpper(httpRequest.Method)
 
-    switch strings.ToUpper(httpRequest.Method) {
+    switch method {
     case "GET":
         if collectionRequest {
             collection.handleList(restRequest, response)
@@ -161,6 +173,14 @@ func (collection *Collection) handle(restRequest *Request, response http.Respons
         } else {
             collection.handleDelete(restRequest, response)
             return
+        }
+
+    default:
+        if !collectionRequest {
+            if handler := collection.customActions[method]; handler != nil {
+                collection.handleCustomAction(restRequest, handler, response)
+                return
+            }
         }
     }
 
@@ -265,6 +285,15 @@ func (collection *Collection) handleDelete(restRequest *Request, response http.R
 
 func (collection *Collection) handleBatchDelete(restRequest *Request, response http.ResponseWriter) {
     if err := collection.handler.BatchDelete(restRequest); err != nil {
+        writeError(response, err)
+        return
+    }
+
+    writeAnswer(response, http.StatusOK, nil)
+}
+
+func (collection *Collection) handleCustomAction(restRequest *Request, handler ActionHandler, response http.ResponseWriter) {
+    if err := handler.Do(restRequest); err != nil {
         writeError(response, err)
         return
     }

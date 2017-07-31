@@ -18,6 +18,8 @@ type Doable interface {
 
 type CollectionItem interface {
     Doable
+
+    DoAction(method string) error
 }
 
 type Collection interface {
@@ -293,6 +295,11 @@ func (collection *_collection) Do(method, contentType string, content []byte) (*
 
 func (collection *_collection) DoStream(method, contentType string, contentReader io.Reader) (*http.Response, error) {
     return collection.doStream(method, collection.path, contentType, contentReader)
+}
+
+func (collection *_collection) DoAction(method string) error {
+    _, err := collection.do(method, collection.path, "", nil)
+    return err
 }
 
 func (collection *_collection) do(method, path, contentType string, content []byte) (*http.Response, error) {
