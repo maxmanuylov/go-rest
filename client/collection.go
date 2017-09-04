@@ -239,7 +239,11 @@ func (collection *_collection) doCreate(contentType string, itemContent []byte) 
         return response, "", err
     }
 
-    return response, strings.TrimPrefix(strings.TrimPrefix(strings.TrimPrefix(location.Path, "/"), collection.path), "/"), nil
+    if pos := strings.LastIndex(location.Path, collection.path); pos != -1 {
+        return response, strings.TrimPrefix(location.Path[pos + len(collection.path):], "/"), nil
+    }
+
+    return response, location.Path, nil
 }
 
 func (collection *_collection) Update(id string, item interface{}) error {
