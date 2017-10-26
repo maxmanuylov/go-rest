@@ -197,6 +197,8 @@ func (collection *_collection) doGet(path, contentType string) ([]byte, error) {
     if err != nil || response == nil {
         return nil, err
     }
+    defer response.Body.Close()
+
     return ioutil.ReadAll(response.Body)
 }
 
@@ -215,17 +217,17 @@ func (collection *_collection) Create(item interface{}) (string, error) {
         }
     }
 
-    return id, err
+    return id, ignoreResponse(response, err)
 }
 
 func (collection *_collection) CreateJson(itemJson []byte) (string, error) {
-    _, id, err := collection.doCreate(Json, itemJson)
-    return id, err
+    response, id, err := collection.doCreate(Json, itemJson)
+    return id, ignoreResponse(response, err)
 }
 
 func (collection *_collection) CreateYaml(itemYaml []byte) (string, error) {
-    _, id, err := collection.doCreate(Yaml, itemYaml)
-    return id, err
+    response, id, err := collection.doCreate(Yaml, itemYaml)
+    return id, ignoreResponse(response, err)
 }
 
 func (collection *_collection) doCreate(contentType string, itemContent []byte) (*http.Response, string, error) {
@@ -263,8 +265,7 @@ func (collection *_collection) UpdateYaml(id string, itemYaml []byte) error {
 }
 
 func (collection *_collection) doUpdate(id, contentType string, itemContent []byte) error {
-    _, err := collection.do("POST", collection.itemPath(id), contentType, itemContent)
-    return err
+    return ignoreResponse(collection.do("POST", collection.itemPath(id), contentType, itemContent))
 }
 
 func (collection *_collection) Replace(id string, item interface{}) error {
@@ -284,13 +285,11 @@ func (collection *_collection) ReplaceYaml(id string, itemYaml []byte) error {
 }
 
 func (collection *_collection) doReplace(id, contentType string, itemContent []byte) error {
-    _, err := collection.do("PUT", collection.itemPath(id), contentType, itemContent)
-    return err
+    return ignoreResponse(collection.do("PUT", collection.itemPath(id), contentType, itemContent))
 }
 
 func (collection *_collection) Delete(id string) error {
-    _, err := collection.do("DELETE", collection.itemPath(id), "", nil)
-    return err
+    return ignoreResponse(collection.do("DELETE", collection.itemPath(id), "", nil))
 }
 
 func (collection *_collection) Do(method, contentType string, content []byte) (*http.Response, error) {
@@ -302,8 +301,7 @@ func (collection *_collection) DoStream(method, contentType string, contentReade
 }
 
 func (collection *_collection) DoAction(method string) error {
-    _, err := collection.do(method, collection.path, "", nil)
-    return err
+    return ignoreResponse(collection.do(method, collection.path, "", nil))
 }
 
 func (collection *_collection) do(method, path, contentType string, content []byte) (*http.Response, error) {
@@ -338,4 +336,11 @@ func (collection *_collection) doRequest(path string, request func(string) (*htt
 
 func (collection *_collection) itemPath(id string) string {
     return fmt.Sprintf("%s/%s", collection.path, strings.Trim(id, "/"))
+}
+
+func ignoreResponse(response *http.Response, err error) error {
+    if response != nil && response.Body != nil {
+        defer response.Body.Close()
+    }
+    return err
 }

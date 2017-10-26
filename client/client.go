@@ -75,6 +75,7 @@ func (client *Client) DoStream(method, path, contentType string, contentReader i
     if response.StatusCode / 100 == 2 {
         return response, nil
     }
+    defer response.Body.Close()
 
     message, err := ioutil.ReadAll(response.Body)
 
