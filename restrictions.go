@@ -62,7 +62,7 @@ func getProblemFields(value reflect.Value, action ItemAction, checkArrayIsNotEmp
     case reflect.Map:
         for _, key := range value.MapKeys() {
             if fields := getProblemFields(value.MapIndex(key), action, false); fields != nil {
-                return fields.withPrefix(fmt.Sprintf("[%v]", value.Interface()))
+                return fields.withPrefix(fmt.Sprintf("[%v]", key))
             }
         }
 
