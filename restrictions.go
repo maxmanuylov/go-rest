@@ -75,7 +75,7 @@ func getProblemFields(value reflect.Value, action ItemAction, checkArrayIsNotEmp
             fieldType := valueType.Field(i)
             r := getRestrictions(fieldType, action)
 
-            if isZero(field) {
+            if field.Kind() != reflect.Struct && isZero(field) {
                 if len(r.oneOfKeys) != 0 {
                     fieldName := getFieldName(fieldType)
                     for _, oneOfKey := range r.oneOfKeys {
@@ -101,6 +101,9 @@ func getProblemFields(value reflect.Value, action ItemAction, checkArrayIsNotEmp
                     }
                 }
                 if fields := getProblemFields(field, action, r.nonEmptyArray); fields != nil {
+                    if fieldType.Anonymous {
+                        return fields
+                    }
                     return fields.withPrefix(fmt.Sprintf(".%s", getFieldName(fieldType)))
                 }
             }
