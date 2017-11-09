@@ -61,9 +61,7 @@ func (client *Client) DoStream(method, path, contentType string, contentReader i
 
     for _, header := range additionalHeaders {
         if header.Name != "" && header.Values != nil {
-            for _, value := range header.Values {
-                request.Header.Add(header.Name, value)
-            }
+            request.Header[header.Name] = header.Values
         }
     }
 
