@@ -345,11 +345,18 @@ func (collection *Collection) readItem(httpRequest *http.Request, action ItemAct
 }
 
 func writeError(response http.ResponseWriter, err error) {
-    code := http.StatusInternalServerError
+    var code int
+    var message string
+
     if restError, ok := err.(*rest_error.Error); ok {
         code = restError.Code
+        message = restError.Message
+    } else {
+        code = http.StatusInternalServerError
+        message = err.Error()
     }
-    http.Error(response, err.Error(), code)
+
+    http.Error(response, message, code)
 }
 
 func writeAnswer(response http.ResponseWriter, status int, content []byte) {
