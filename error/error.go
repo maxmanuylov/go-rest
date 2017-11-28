@@ -11,7 +11,10 @@ type Error struct {
 }
 
 func (err *Error) Error() string {
-    return err.Message
+    if err.Message == "" {
+        return fmt.Sprintf("%d %s", err.Code, http.StatusText(err.Code))
+    }
+    return fmt.Sprintf("%d %s: %s", err.Code, http.StatusText(err.Code), err.Message)
 }
 
 func (err *Error) IsClientError() bool {
@@ -25,14 +28,13 @@ func (err *Error) IsServerError() bool {
 func NewByCode(code int) *Error {
     return &Error{
         Code: code,
-        Message: fmt.Sprintf("%d %s", code, http.StatusText(code)),
     }
 }
 
 func New(code int, message string) *Error {
     return &Error{
-        Code: code,
-        Message: fmt.Sprintf("%d %s: %s", code, http.StatusText(code), message),
+        Code:    code,
+        Message: message,
     }
 }
 
