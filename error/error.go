@@ -41,3 +41,11 @@ func New(code int, message string) *Error {
 func (err *Error) Send(response http.ResponseWriter) {
     http.Error(response, err.Message, err.Code)
 }
+
+func Send(err error, response http.ResponseWriter) {
+    if restError, ok := err.(*Error); ok {
+        restError.Send(response)
+    } else {
+        http.Error(response, err.Error(), http.StatusInternalServerError)
+    }
+}
