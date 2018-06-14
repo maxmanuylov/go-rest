@@ -1,24 +1,10 @@
 package rest
 
 import (
-    "encoding/json"
     "fmt"
     "github.com/maxmanuylov/go-rest/error"
-    "io/ioutil"
     "net/http"
-    "net/url"
-    "path"
-    "reflect"
-    "strconv"
     "strings"
-)
-
-type ItemAction string
-
-const (
-    Create  ItemAction = "create"
-    Update             = "update"
-    Replace            = "replace"
 )
 
 var (
@@ -26,43 +12,37 @@ var (
 )
 
 type Request struct {
+    *http.Request
+
+    Level int
     IDs   []string
-    Query url.Values
 }
 
-type ResourceHandler interface {
-    EmptyItem() interface{}
-    Create(request *Request, item interface{}) (string, error)
-    Read(request *Request) (interface{}, error)
-    List(request *Request) (interface{}, error)
-    Update(request *Request, item interface{}) error
-    Replace(request *Request, item interface{}) error
-    Delete(request *Request) error
-    BatchDelete(request *Request) error
+type Handler interface {
+    ServeHTTP(request *Request, response http.ResponseWriter)
 }
 
-type ActionHandler interface {
-    Do(request *Request) error
+type HandlerFunc func(*Request, http.ResponseWriter)
+
+func (f HandlerFunc) ServeHTTP(request *Request, response http.ResponseWriter) {
+    f(request, response)
 }
 
 type Collection struct {
     level          int
-    handler        ResourceHandler
-    customActions  map[string]ActionHandler
+    handler        Handler
     subCollections map[string]*Collection
 }
 
-func newCollection(level int, handler ResourceHandler) *Collection {
+func newCollection(level int) *Collection {
     return &Collection{
-        level: level,
-        handler: handler,
-        customActions: make(map[string]ActionHandler),
+        level:          level,
         subCollections: make(map[string]*Collection),
     }
 }
 
-func (server *Server) Collection(name string, handler ResourceHandler) *Collection {
-    collection := newCollection(0, handler)
+func (server *Server) Collection(name string) *Collection {
+    collection := newCollection(0)
 
     if strings.Contains(name, "/") {
         panic(fmt.Sprintf("Slash in collection name: %s", name))
@@ -101,12 +81,18 @@ func (server *Server) Collection(name string, handler ResourceHandler) *Collecti
             }
         }
 
-        restRequest := &Request{
-            IDs:   ids,
-            Query: httpRequest.URL.Query(),
+        if actualCollection.handler == nil {
+            writeError(response, ErrMethodNotAllowed)
+            return
         }
 
-        actualCollection.handle(restRequest, response, httpRequest)
+        request := &Request{
+            Request: httpRequest,
+            Level:   actualCollection.level,
+            IDs:     ids,
+        }
+
+        actualCollection.handler.ServeHTTP(request, response)
     }
 
     server.mux.HandleFunc(collectionPath, handlerFunc)
@@ -115,233 +101,25 @@ func (server *Server) Collection(name string, handler ResourceHandler) *Collecti
     return collection
 }
 
-func (collection *Collection) SubCollection(name string, handler ResourceHandler) *Collection {
-    subCollection := newCollection(collection.level + 1, handler)
-    collection.subCollections[name] = subCollection
-    return subCollection
+func (collection *Collection) CustomHandler(handler Handler) *Collection {
+    collection.handler = handler
+    return collection
 }
 
-func (collection *Collection) CustomAction(method string, handler ActionHandler) *Collection {
-    collection.customActions[strings.ToUpper(method)] = handler
-    return collection
+func (collection *Collection) CustomHandlerFunc(handlerFunc func(*Request, http.ResponseWriter)) *Collection {
+    return collection.CustomHandler(HandlerFunc(handlerFunc))
+}
+
+func (collection *Collection) SubCollection(name string) *Collection {
+    subCollection := newCollection(collection.level + 1)
+    collection.subCollections[name] = subCollection
+    return subCollection
 }
 
 func splitPath(path string) []string {
     return strings.FieldsFunc(strings.TrimSpace(path), func(r rune) bool {
         return r == '/'
     })
-}
-
-func (r *Request) IsFlagSet(flagName string) bool {
-    flag, err := strconv.ParseBool(r.Query.Get(flagName))
-    return err == nil && flag
-}
-
-func (collection *Collection) handle(restRequest *Request, response http.ResponseWriter, httpRequest *http.Request) {
-    collectionRequest := collection.level == len(restRequest.IDs)
-    method := strings.ToUpper(httpRequest.Method)
-
-    switch method {
-    case "GET":
-        if collectionRequest {
-            collection.handleList(restRequest, response)
-            return
-        } else {
-            collection.handleRead(restRequest, response)
-            return
-        }
-
-    case "POST":
-        if collectionRequest {
-            collection.handleCreate(restRequest, response, httpRequest)
-            return
-        } else {
-            collection.handleUpdate(restRequest, response, httpRequest)
-            return
-        }
-
-    case "PUT":
-        if !collectionRequest {
-            collection.handleReplace(restRequest, response, httpRequest)
-            return
-        }
-
-    case "DELETE":
-        if collectionRequest {
-            collection.handleBatchDelete(restRequest, response)
-            return
-        } else {
-            collection.handleDelete(restRequest, response)
-            return
-        }
-
-    default:
-        if !collectionRequest {
-            if handler := collection.customActions[method]; handler != nil {
-                collection.handleCustomAction(restRequest, handler, response)
-                return
-            }
-        }
-    }
-
-    writeError(response, ErrMethodNotAllowed)
-}
-
-func (collection *Collection) handleList(restRequest *Request, response http.ResponseWriter) {
-    items, err := collection.handler.List(restRequest)
-    if err != nil {
-        writeError(response, err)
-        return
-    }
-
-    itemsJson, err := marshal(items, restRequest)
-    if err != nil {
-        writeError(response, err)
-        return
-    }
-
-    writeAnswer(response, http.StatusOK, itemsJson)
-}
-
-func (collection *Collection) handleRead(restRequest *Request, response http.ResponseWriter) {
-    item, err := collection.handler.Read(restRequest)
-    if err != nil {
-        writeError(response, err)
-        return
-    }
-
-    if isNil(item) {
-        writeError(response, rest_error.NewByCode(http.StatusNotFound))
-        return
-    }
-
-    itemJson, err := marshal(item, restRequest)
-    if err != nil {
-        writeError(response, err)
-        return
-    }
-
-    writeAnswer(response, http.StatusOK, itemJson)
-}
-
-func (collection *Collection) handleCreate(restRequest *Request, response http.ResponseWriter, httpRequest *http.Request) {
-    item, err := collection.readItem(httpRequest, Create)
-    if err != nil {
-        writeError(response, err)
-        return
-    }
-
-    id, err := collection.handler.Create(restRequest, item)
-    if err != nil {
-        writeError(response, err)
-        return
-    }
-
-    relativeLocation := path.Clean(fmt.Sprintf("/%s/%s", strings.Trim(httpRequest.URL.Path, "/"), id))
-
-    response.Header().Add("Location", relativeLocation)
-
-    writeAnswer(response, http.StatusCreated, nil)
-}
-
-func (collection *Collection) handleUpdate(restRequest *Request, response http.ResponseWriter, httpRequest *http.Request) {
-    item, err := collection.readItem(httpRequest, Update)
-    if err != nil {
-        writeError(response, err)
-        return
-    }
-
-    if err := collection.handler.Update(restRequest, item); err != nil {
-        writeError(response, err)
-        return
-    }
-
-    writeAnswer(response, http.StatusOK, nil)
-}
-
-func (collection *Collection) handleReplace(restRequest *Request, response http.ResponseWriter, httpRequest *http.Request) {
-    item, err := collection.readItem(httpRequest, Replace)
-    if err != nil {
-        writeError(response, err)
-        return
-    }
-
-    if err := collection.handler.Replace(restRequest, item); err != nil {
-        writeError(response, err)
-        return
-    }
-
-    writeAnswer(response, http.StatusOK, nil)
-}
-
-func (collection *Collection) handleDelete(restRequest *Request, response http.ResponseWriter) {
-    if err := collection.handler.Delete(restRequest); err != nil {
-        writeError(response, err)
-        return
-    }
-
-    writeAnswer(response, http.StatusOK, nil)
-}
-
-func (collection *Collection) handleBatchDelete(restRequest *Request, response http.ResponseWriter) {
-    if err := collection.handler.BatchDelete(restRequest); err != nil {
-        writeError(response, err)
-        return
-    }
-
-    writeAnswer(response, http.StatusOK, nil)
-}
-
-func (collection *Collection) handleCustomAction(restRequest *Request, handler ActionHandler, response http.ResponseWriter) {
-    if err := handler.Do(restRequest); err != nil {
-        writeError(response, err)
-        return
-    }
-
-    writeAnswer(response, http.StatusOK, nil)
-}
-
-func isNil(item interface{}) bool {
-    if item == nil {
-        return true
-    }
-
-    value := reflect.ValueOf(item)
-
-    switch value.Kind() {
-    case reflect.Interface, reflect.Ptr, reflect.Slice, reflect.Map:
-        return value.IsNil()
-    default:
-        return false
-    }
-}
-
-func marshal(v interface{}, restRequest *Request) ([]byte, error) {
-    if indentParam := restRequest.Query.Get("indent"); indentParam != "" {
-        if indentCount, err := strconv.Atoi(indentParam); err == nil && 0 < indentCount && indentCount <= 32 {
-            return json.MarshalIndent(v, "", strings.Repeat(" ", indentCount))
-        }
-    }
-    return json.Marshal(v)
-}
-
-func (collection *Collection) readItem(httpRequest *http.Request, action ItemAction) (interface{}, error) {
-    itemJson, err := ioutil.ReadAll(httpRequest.Body)
-    if err != nil {
-        return nil, err
-    }
-
-    item := collection.handler.EmptyItem()
-
-    if err := json.Unmarshal(itemJson, item); err != nil {
-        return nil, rest_error.New(http.StatusBadRequest, err.Error())
-    }
-
-    if err := CheckRestrictions(item, action); err != nil {
-        return nil, rest_error.New(http.StatusBadRequest, err.Error())
-    }
-
-    return item, nil
 }
 
 func writeError(response http.ResponseWriter, err error) {
@@ -357,22 +135,4 @@ func writeError(response http.ResponseWriter, err error) {
     }
 
     http.Error(response, message, code)
-}
-
-func writeAnswer(response http.ResponseWriter, status int, content []byte) {
-    if content != nil {
-        response.Header().Add("Content-Type", "application/json")
-    }
-
-    response.WriteHeader(status)
-
-    if content != nil {
-        for len(content) != 0 {
-            n, _ := response.Write(content)
-            if n == 0 {
-                return
-            }
-            content = content[n:]
-        }
-    }
 }
