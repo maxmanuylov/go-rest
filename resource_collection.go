@@ -137,7 +137,7 @@ func (resourceHandler *resourceHandlerAdapter) handleList(request *Request, resp
         return
     }
 
-    itemsJson, err := marshal(items, request)
+    itemsJson, err := request.Marshal(items)
     if err != nil {
         writeError(response, err)
         return
@@ -158,7 +158,7 @@ func (resourceHandler *resourceHandlerAdapter) handleRead(request *Request, resp
         return
     }
 
-    itemJson, err := marshal(item, request)
+    itemJson, err := request.Marshal(item)
     if err != nil {
         writeError(response, err)
         return
@@ -259,18 +259,30 @@ func isNil(item interface{}) bool {
     }
 }
 
-func marshal(v interface{}, request *Request) ([]byte, error) {
-    if request.IsFlagSet("pretty") {
-        return json.MarshalIndent(v, "", "    ")
-    }
+func (r *Request) Marshal(v interface{}) ([]byte, error) {
+    _, marshal := r.GetMarshalFunc()
+    return marshal(v)
+}
 
-    if indentParam := request.URL.Query().Get("indent"); indentParam != "" {
-        if indentCount, err := strconv.Atoi(indentParam); err == nil && 0 < indentCount && indentCount <= 32 {
-            return json.MarshalIndent(v, "", strings.Repeat(" ", indentCount))
+func (r *Request) GetMarshalFunc() (string, func(interface{}) ([]byte, error)) {
+    if r.IsFlagSet("pretty") {
+        return "    ", func(v interface{}) ([]byte, error) {
+            return json.MarshalIndent(v, "", "    ")
         }
     }
-    
-    return json.Marshal(v)
+
+    if indentParam := r.URL.Query().Get("indent"); indentParam != "" {
+        if indentCount, err := strconv.Atoi(indentParam); err == nil && 0 < indentCount && indentCount <= 32 {
+            indent := strings.Repeat(" ", indentCount)
+            return indent, func(v interface{}) ([]byte, error) {
+                return json.MarshalIndent(v, "", indent)
+            }
+        }
+    }
+
+    return "", func(v interface{}) ([]byte, error) {
+        return json.Marshal(v)
+    }
 }
 
 func (resourceHandler *resourceHandlerAdapter) readItem(request *Request, action ItemAction) (interface{}, error) {
