@@ -259,6 +259,10 @@ func isNil(item interface{}) bool {
     }
 }
 
+func (r *Request) GetParam(key string) string {
+    return r.URL.Query().Get(key)
+}
+
 func (r *Request) Marshal(v interface{}) ([]byte, error) {
     _, marshal := r.GetMarshalFunc()
     return marshal(v)
